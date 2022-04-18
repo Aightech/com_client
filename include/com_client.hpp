@@ -43,7 +43,7 @@ class Client
         SOCKET_MODE
     };
 
-    Client(Mode mode);
+    Client();
     ~Client();
 
     void
@@ -73,7 +73,7 @@ class Client
 
     int
     open_connection(const char *address,
-                    int port=5000,
+                    int port=-1,
                     int flags = O_RDWR | O_NOCTTY);
     int
     close_connection();

@@ -14,8 +14,7 @@ main()
 {
     std::cout << "CleverHand Serial Interface:" << std::endl;
 
-    Communication::Client device(Communication::Client::SERIAL_MODE);
-
+    Communication::Client device;
     device.open_connection("/dev/ttyACM0");
     device.setup();
 
