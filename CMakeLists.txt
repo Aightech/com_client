@@ -30,8 +30,8 @@ cmake_minimum_required(VERSION 3.3)
 ######
 
 ###### PROJECT NAME AND VERSION ######
-set(EXEC_NAME com_Client)
-set(PROJECT_VERSION 1.3)
+set(EXEC_NAME com_client)
+set(PROJECT_VERSION 1.4)
 project(${EXEC_NAME} VERSION ${PROJECT_VERSION})
 
 ###### LIBRARY NAME ######
