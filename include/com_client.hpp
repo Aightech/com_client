@@ -39,7 +39,7 @@ class Client
     public:
     enum Mode
     {
-        FILE_MODE,
+        SERIAL_MODE,
         SOCKET_MODE
     };
 

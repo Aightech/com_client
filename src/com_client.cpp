@@ -31,7 +31,7 @@ Client::~Client(void)
 int
 Client::open_connection(const char *address, int port, int flags)
 {
-    if(m_comm_mode == FILE_MODE)
+    if(m_comm_mode == SERIAL_MODE)
       {
 
 	this->setup_serial(address, flags);
@@ -80,6 +80,7 @@ Client::setup_socket(const char *address, int port)
         perror("connect()");
         exit(errno);
     }
+    return m_fd;
 }
 
 int
@@ -136,6 +137,7 @@ Client::setup_serial(const char *path, int flags)
                   << std::endl;
         exit(-1);
     }
+    return m_fd;
 }
 
 int

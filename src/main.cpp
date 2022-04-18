@@ -14,11 +14,10 @@ main()
 {
     std::cout << "CleverHand Serial Interface:" << std::endl;
 
-    Communication::Client device;
+    Communication::Client device(Communication::Client::SERIAL_MODE);
 
-    device.open("/dev/ttyACM0");
+    device.open_connection("/dev/ttyACM0");
     device.setup();
-    int16_t val16[8 * 8];
 
     try
     {
@@ -36,12 +35,11 @@ main()
             {
                 //std::cout << " hoy " << std::endl;
 	      uint8_t buff[128] = { '\n'};
-	      int m = 0;
-                device.writeSerial(buff, 1);
+                device.writeS(buff, 1);
                 int n = 0;
                 while(n < 128)
                 {
-                    n += device.readSerial(buff + n, 128 - n);
+                    n += device.readS(buff + n, 128 - n);
 		}
                 for(int i = 0; i < 8; i++)
                 {
@@ -68,7 +66,7 @@ main()
         std::cerr << "[ERROR] Got an exception: " << e.what() << std::endl;
     }
     uint8_t b[1] = {'n'};
-    device.writeSerial(b, 1);
+    device.writeS(b, 1);
 
     return 0; // success
 }
