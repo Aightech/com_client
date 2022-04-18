@@ -30,8 +30,8 @@ cmake_minimum_required(VERSION 3.3)
 ######
 
 ###### PROJECT NAME AND VERSION ######
-set(EXEC_NAME SerialClient)
-set(PROJECT_VERSION 1.2)
+set(EXEC_NAME com_Client)
+set(PROJECT_VERSION 1.3)
 project(${EXEC_NAME} VERSION ${PROJECT_VERSION})
 
 ###### LIBRARY NAME ######
@@ -86,7 +86,7 @@ include(CMakeFunctions.txt)
 
 ###### Search for Subdirectories/Libraries ######
 if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/lib")
-  set(SUBMODULES_LIST "built_lsl")
+  set(SUBMODULES_LIST "")
   execute_process(COMMAND git submodule status
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     OUTPUT_VARIABLE SUBMODULES_LIST)
@@ -94,16 +94,16 @@ if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/lib")
   foreach(subdir ${LIBS})
     string(FIND "${SUBMODULES_LIST}" "${subdir}" FOUND)
     if(${FOUND} GREATER -1)
-    #git submodules init
+#git submodules init
     execute_process(COMMAND git submodule update --init -- "lib/${subdir}"
       WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} OUTPUT_VARIABLE OUTPUT)
       add_subdirectory("lib/${subdir}")
-      #get the version
+#get the version
       subproject_version("${subdir}" subdir_version)
       message("-- ${EXEC_NAME}: Added library ${subdir} version: ${subdir_version}")
       list(APPEND EXTRA_LIBS "${subdir}.${subdir_version}")
     else()
-      #add_subdirectory("lib/${subdir}")
+#add_subdirectory("lib/${subdir}")
       message("-- ${EXEC_NAME}: Added library ${subdir}")
       list(APPEND EXTRA_LIBS "${subdir}")
       link_directories(${CMAKE_SOURCE_DIR}/lib/${subdir})
@@ -140,17 +140,16 @@ install(TARGETS ${EXEC_NAME} DESTINATION bin)
 install(TARGETS ${LIB_NAME} DESTINATION lib)
 install(FILES ${HEADERS} DESTINATION include)
 
+#enable_testing()
 
-# enable_testing()
+# #define a function to simplify adding tests
+#function(do_test target arg result)
+#add_test(NAME Comp${arg} COMMAND ${target} ${arg})
+#set_tests_properties(Comp${arg}
+#PROPERTIES PASS_REGULAR_EXPRESSION ${result }
+#)
+#endfunction(do_test)
 
-# # define a function to simplify adding tests
-# function(do_test target arg result)
-#   add_test(NAME Comp${arg} COMMAND ${target} ${arg})
-#   set_tests_properties(Comp${arg}
-#     PROPERTIES PASS_REGULAR_EXPRESSION ${result}
-#     )
-# endfunction(do_test)
-
-# # do a bunch of result based tests
-# do_test(canopen 1 1000 0 "")
-# do_test(canopen 2 607A 0 4 d 1000 "")
+# #do a bunch of result based tests
+#do_test(canopen 1 1000 0 "")
+#do_test(canopen 2 607A 0 4 d 1000 "")
