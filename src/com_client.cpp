@@ -8,7 +8,7 @@
 namespace Communication
 {
 
-Client::Client(Mode mode) : m_comm_mode(mode)
+Client::Client()
 {
 #ifdef WIN32
     WSADATA wsa;
@@ -31,15 +31,16 @@ Client::~Client(void)
 int
 Client::open_connection(const char *address, int port, int flags)
 {
-    if(m_comm_mode == SERIAL_MODE)
-      {
+    if(port == -1)
+        m_comm_mode = SERIAL_MODE;
+    else
+        m_comm_mode = SOCKET_MODE;
 
-	this->setup_serial(address, flags);
-      }
+    if(m_comm_mode == SERIAL_MODE)
+        this->setup_serial(address, flags);
     else if(m_comm_mode == SOCKET_MODE)
-    {
-      setup_socket(address, port);
-    }
+        setup_socket(address, port);
+
     usleep(100000);
 
     return m_fd;
