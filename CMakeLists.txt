@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.3)
 ###### Author: Alexis Devillard
-###### Date:   27/01/2020
+###### Date:   27/04/2022
 ###### Brief: This CmakeLists.txt file enable to build generic project with the following structure:
 ######                                +---------+
 ######                                | project |
@@ -31,7 +31,7 @@ cmake_minimum_required(VERSION 3.3)
 
 ###### PROJECT NAME AND VERSION ######
 set(EXEC_NAME com_client)
-set(PROJECT_VERSION 1.3)
+set(PROJECT_VERSION 1.11)
 project(${EXEC_NAME} VERSION ${PROJECT_VERSION})
 
 ###### LIBRARY NAME ######
@@ -46,6 +46,7 @@ if(1)
   set(EXTRA_LIBS "pthread" "util")
 endif()
 
+###### Boost libraries ######
 if(0)
   find_package(Boost 1.56 REQUIRED COMPONENTS system filesystem iostreams)
   if (Boost_FOUND)
@@ -55,6 +56,7 @@ if(0)
   endif (Boost_FOUND)
 endif()
 
+###### SFML libraries ######
 if(0)
   find_package(SFML REQUIRED COMPONENTS graphics window system)
   if (SFML_FOUND)
@@ -62,6 +64,18 @@ if(0)
   else ()
     message("Couldn't find SFML library")
   endif (SFML_FOUND)
+endif()
+
+###### OpenCV libraries ######
+if(0)
+  find_package(OpenCV REQUIRED)
+  if (OpenCV_FOUND)
+    list(APPEND EXTRA_LIBS ${OpenCV_LIBS})
+    list(APPEND EXTRA_INCLUDES ${OpenCV_INCLUDE_DIRS})
+    message("-- Opencv library Found")
+  else ()
+    message("Couldn't find Opencv library")
+  endif (OpenCV_FOUND)
 endif()
 
 ###### Get the sources and headers ######
@@ -77,16 +91,26 @@ file(GLOB LIB_HEADERS "${CMAKE_CURRENT_SOURCE_DIR}/include/*.h" "include/*.hpp")
 list(REMOVE_ITEM LIB_HEADERS ${EXTRA_HEADERS})
 
 
-
+###### check for internet ######
+execute_process(COMMAND printf "-- Check internet connection: ...\\b\\b\\b")
+execute_process(
+  COMMAND ping www.google.com -c 2 -w 1 
+  ERROR_QUIET
+  OUTPUT_QUIET
+  RESULT_VARIABLE NO_CONNECTION
+  )
+if(NO_CONNECTION EQUAL 1)
+  message(" Online")
+else()
+  message(" Offline")
+endif()
 
 
 ###### include helper functions ######
 include(CMakeFunctions.txt)
 
-
 ###### Search for Subdirectories/Libraries ######
 if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/lib")
-  set(SUBMODULES_LIST "built_lsl")
   execute_process(COMMAND git submodule status
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     OUTPUT_VARIABLE SUBMODULES_LIST)
@@ -94,26 +118,22 @@ if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/lib")
   foreach(subdir ${LIBS})
     message("-- ${subdir}")
     string(FIND "${SUBMODULES_LIST}" "${subdir}" FOUND)
-    if(${FOUND} GREATER -1)
+    if(${FOUND} GREATER -1 AND NO_CONNECTION EQUAL 1 )
       #git submodules init
-      message("-- ok")
-    execute_process(COMMAND git submodule update --init -- "lib/${subdir}"
-      WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} OUTPUT_VARIABLE OUTPUT)
-      add_subdirectory("lib/${subdir}")
-      #get the version
-      subproject_version("${subdir}" subdir_version)
-      message("-- ${EXEC_NAME}: Added library ${subdir} version: ${subdir_version}")
-      list(APPEND EXTRA_LIBS "${subdir}.${subdir_version}")
-    else()
-      #add_subdirectory("lib/${subdir}")
-      message("-- ${EXEC_NAME}: Added library ${subdir}")
-      list(APPEND EXTRA_LIBS "${subdir}")
-      link_directories(${CMAKE_SOURCE_DIR}/lib/${subdir})
+      execute_process(COMMAND git submodule update --init -- "lib/${subdir}"
+	WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} OUTPUT_VARIABLE OUTPUT)
     endif()
+    add_subdirectory("lib/${subdir}")
+    #get the version
+    subproject_version("${subdir}" subdir_version)
+    message("-- ${EXEC_NAME}: Added library ${subdir} version: ${subdir_version}")
+    get_directory_property(libname
+      DIRECTORY "lib/${subdir}"
+      DEFINITION LIB_NAME)
+    list(APPEND EXTRA_LIBS "${libname}")
+    link_directories(${CMAKE_SOURCE_DIR}/lib/${subdir}/bin)    
   endforeach()
 endif()
-
-
 
 
 ###### Create the library ######
@@ -136,15 +156,13 @@ target_include_directories(${EXEC_NAME}
 
 
 
- 
 ###### Instalation rule ######
 install(TARGETS ${EXEC_NAME} DESTINATION bin)
-install(TARGETS ${LIB_NAME} DESTINATION lib)
+install(TARGETS ${LIB_NAME} DESTINATION bin)
 install(FILES ${HEADERS} DESTINATION include)
 
 
 # enable_testing()
-
 # # define a function to simplify adding tests
 # function(do_test target arg result)
 #   add_test(NAME Comp${arg} COMMAND ${target} ${arg})
@@ -152,7 +170,6 @@ install(FILES ${HEADERS} DESTINATION include)
 #     PROPERTIES PASS_REGULAR_EXPRESSION ${result}
 #     )
 # endfunction(do_test)
-
 # # do a bunch of result based tests
 # do_test(canopen 1 1000 0 "")
 # do_test(canopen 2 607A 0 4 d 1000 "")
