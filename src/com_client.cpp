@@ -166,4 +166,22 @@ Client::writeS(const void *buffer, size_t size)
     return n;
 }
 
+bool
+Client::SetSocketBlockingEnabled(bool blocking)
+{
+    if(m_fd < 0)
+        return false;
+
+#ifdef _WIN32
+    unsigned long mode = blocking ? 0 : 1;
+    return (ioctlsocket(m_fd, FIONBIO, &mode) == 0) ? true : false;
+#else
+    int flags = fcntl(m_fd, F_GETFL, 0);
+    if(flags == -1)
+        return false;
+    flags = blocking ? (flags & ~O_NONBLOCK) : (flags | O_NONBLOCK);
+    return (fcntl(m_fd, F_SETFL, flags) == 0) ? true : false;
+#endif
+}
+
 } // namespace Communication

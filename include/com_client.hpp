@@ -73,7 +73,7 @@ class Client
 
     int
     open_connection(const char *address,
-                    int port=-1,
+                    int port = -1,
                     int flags = O_RDWR | O_NOCTTY);
     int
     close_connection();
@@ -88,6 +88,11 @@ class Client
     setup_serial(const char *address, int flags);
     int
     setup_socket(const char *address, int port);
+
+    /** Returns true on success, or false if there was an error */
+    bool
+    SetSocketBlockingEnabled(bool blocking);
+
     SOCKET m_fd;
     Mode m_comm_mode;
 };
