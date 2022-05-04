@@ -3,13 +3,25 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <cerrno>
+#include <clocale>
+#include <cstring>
+
 #include "com_client.hpp"
+
+#define LOG(...)             \
+    if(m_verbose)            \
+    {                        \
+        printf(__VA_ARGS__); \
+        fflush(stdout);      \
+    }
 
 namespace Communication
 {
 
-Client::Client()
+Client::Client(bool verbose) : m_verbose(true)
 {
+  m_mutex = new std::mutex();
 #ifdef WIN32
     WSADATA wsa;
     int err = WSAStartup(MAKEWORD(2, 2), &wsa);
@@ -26,6 +38,7 @@ Client::~Client(void)
 #ifdef WIN32
     WSACleanup();
 #endif
+    delete m_mutex;
 }
 
 int
@@ -39,7 +52,8 @@ Client::open_connection(const char *address, int port, int flags)
     if(m_comm_mode == SERIAL_MODE)
         this->setup_serial(address, flags);
     else if(m_comm_mode == SOCKET_MODE)
-        setup_socket(address, port);
+        this->setup_socket(address, port,
+                           ((O_RDWR | O_NOCTTY) == flags) ? -1 : flags);
 
     usleep(100000);
 
@@ -53,35 +67,70 @@ Client::close_connection()
 }
 
 int
-Client::setup_socket(const char *address, int port)
+Client::setup_socket(const char *address, int port, int timeout)
 {
-    m_fd = socket(AF_INET, SOCK_STREAM, 0);
     SOCKADDR_IN sin = {0};
     struct hostent *hostinfo;
+    TIMEVAL tv = {.tv_sec = timeout, .tv_usec = 0};
+    int res;
+    std::string id =
+        "[" + std::string(address) + ":" + std::to_string(port) + "]";
 
+    m_fd = socket(AF_INET, SOCK_STREAM, 0);
     if(m_fd == INVALID_SOCKET)
-    {
-        perror("socket()");
-        exit(errno);
-    }
+        throw std::string("socket() invalid");
 
     hostinfo = gethostbyname(address);
     if(hostinfo == NULL)
-    {
-        fprintf(stderr, "Unknown host %s.\n", address);
-        exit(EXIT_FAILURE);
-    }
+        throw std::string("Unknown host") + address;
 
     sin.sin_addr = *(IN_ADDR *)hostinfo->h_addr;
     sin.sin_port = htons(port);
     sin.sin_family = AF_INET;
 
-    if(connect(m_fd, (SOCKADDR *)&sin, sizeof(SOCKADDR)) == SOCKET_ERROR)
+    
+    if(timeout!=-1)
+      this->SetSocketBlockingEnabled(false); //set socket non-blocking
+    res = connect(m_fd, (SOCKADDR *)&sin, sizeof(SOCKADDR)); //try to connect
+    if(timeout!=-1)
+      this->SetSocketBlockingEnabled(true); //set socket blocking
+
+    LOG("\x1b[34m[TCP SOCKET]\x1b[0m\tConnection to %s in progress\x1b[5m...\x1b[0m (timeout "
+            "%ds)\x1b[16D",
+            id.c_str(), timeout);
+
+    if(res < 0 && errno == EINPROGRESS) //if not connected instantaneously
     {
-        perror("connect()");
-        exit(errno);
+        fd_set wait_set;         //create fd set
+        FD_ZERO(&wait_set);      //clear fd set
+        FD_SET(m_fd, &wait_set); //add m_fd to the set
+        res = select(m_fd + 1,  // return if one of the set could be wrt/rd/expt
+                     NULL, //reading set of fd to watch
+                     &wait_set,      //writing set of fd to watch
+                     NULL,      //exepting set of fd to watch
+                     &tv);      //timeout before stop watching
+        if(res < 1)
+            LOG("\x1b[1;31m NO \x1b[0m\n");
+        if(res == -1)
+            throw id + std::string(" Error with select()");
+        else if(res == 0)
+            throw id + std::string(" Connection timed out");
     }
-    return m_fd;
+    if(res)
+    {
+        int opt; // check for errors in socket layer
+        socklen_t len = sizeof(opt);
+        if(getsockopt(m_fd, SOL_SOCKET, SO_ERROR, &opt, &len) < 0)
+            throw id + std::string(" Error retrieving socket options");
+        if(opt) // there was an error
+            throw id + " " + std::string(std::strerror(opt));
+        LOG("\x1b[32m OK \x1b[0m\n");
+        LOG("\t\tConnected to [%s:%d]\n", address, port);
+        m_is_connected = true;
+    }
+    
+
+    return 1;
 }
 
 int
@@ -144,31 +193,37 @@ Client::setup_serial(const char *path, int flags)
 int
 Client::readS(uint8_t *buffer, size_t n)
 {
+  std::lock_guard<std::mutex> lck (*m_mutex);//ensure only one thread using it
     int nn = 0;
-
+    //std::cout << "reading" << std::endl;
     if((nn = recv(m_fd, buffer, n, 0)) < 0)
     {
         perror("recv()");
         exit(errno);
     }
+    //std::cout << "read" << std::endl;
     return nn;
 }
 
 int
 Client::writeS(const void *buffer, size_t size)
 {
+  std::lock_guard<std::mutex> lck (*m_mutex);//ensure only one thread using it
     int n = 0;
+    //std::cout << "writing" << std::endl;
     if((n = send(m_fd, buffer, size, 0)) < 0)
     {
         perror("send()");
         exit(errno);
     }
+    //std::cout << "written" << std::endl;
     return n;
 }
 
 bool
 Client::SetSocketBlockingEnabled(bool blocking)
 {
+  std::lock_guard<std::mutex> lck (*m_mutex);//ensure only one thread using it
     if(m_fd < 0)
         return false;
 

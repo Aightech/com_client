@@ -1,6 +1,8 @@
 #ifndef COM_CLIENT_HPP
 #define COM_CLIENT_HPP
 #include <iostream>
+#include <stdexcept>
+#include <mutex>
 
 #ifdef WIN32 //////////// IF WINDOWS OS //////////
 #include <winsock2.h>
@@ -11,8 +13,9 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 // Linux headers
-#include <errno.h>   // Error integer and strerror() function
-#include <fcntl.h>   // Contains file controls like O_RDWR
+#include <errno.h> // Error integer and strerror() function
+#include <fcntl.h> // Contains file controls like O_RDWR
+#include <sys/time.h>
 #include <termios.h> // Contains POSIX terminal control definitions
 #include <unistd.h>  // write(), read(), close()
 #else
@@ -34,6 +37,7 @@ class Client
     typedef struct sockaddr_in SOCKADDR_IN;
     typedef struct sockaddr SOCKADDR;
     typedef struct in_addr IN_ADDR;
+    typedef timeval TIMEVAL;
 #endif
 
     public:
@@ -43,7 +47,7 @@ class Client
         SOCKET_MODE
     };
 
-    Client();
+    Client(bool verbose = false);
     ~Client();
 
     void
@@ -83,11 +87,17 @@ class Client
     int
     writeS(const void *buffer, size_t size);
 
+    bool
+    is_connected()
+    {
+        return m_is_connected;
+    };
+
     private:
     int
     setup_serial(const char *address, int flags);
     int
-    setup_socket(const char *address, int port);
+    setup_socket(const char *address, int port, int timeout=2);
 
     /** Returns true on success, or false if there was an error */
     bool
@@ -95,6 +105,9 @@ class Client
 
     SOCKET m_fd;
     Mode m_comm_mode;
+    bool m_is_connected = false;
+    bool m_verbose;
+  std::mutex* m_mutex;
 };
 
 } // namespace Communication

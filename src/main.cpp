@@ -10,12 +10,29 @@
 #include <lsl_cpp.h>
 
 int
-main()
+main(int argc, char **argv)
 {
-    std::cout << "CleverHand Serial Interface:" << std::endl;
+    if(argc < 3)
+      {
+        std::cout << "Usage: " << argv[0] << " path/address [port]"
+                  << std::endl;
+	exit(0);
+      }
+    std::string path = argv[1];
+    int port = atoi((argc < 2) ?"-1" : argv[2]);
+    std::cout << "Com Interface:" << std::endl;
+    Communication::Client device(true);
 
-    Communication::Client device;
-    device.open_connection("/dev/ttyACM0");
+    try
+    {
+        device.open_connection(path.c_str(), port);
+    }
+    catch(std::string msg)
+    {
+        std::cout << "ERROR: " << msg << "\n";
+	return 0;
+    }
+    
     device.setup();
 
     try
@@ -33,20 +50,17 @@ main()
             if(true) //val8 & 0b00100100)
             {
                 //std::cout << " hoy " << std::endl;
-	      uint8_t buff[128] = { '\n'};
+                uint8_t buff[128] = {'\n'};
                 device.writeS(buff, 1);
                 int n = 0;
-                while(n < 128)
-                {
-                    n += device.readS(buff + n, 128 - n);
-		}
+                while(n < 128) { n += device.readS(buff + n, 128 - n); }
                 for(int i = 0; i < 8; i++)
                 {
                     for(int j = 0; j < 8; j++)
                     {
 
                         std::cout << "  " << ((int16_t *)buff)[i * 8 + j];
-                        sample[i * 8 + (8-j)] = ((int16_t *)buff)[i * 8 + j];
+                        sample[i * 8 + (8 - j)] = ((int16_t *)buff)[i * 8 + j];
                     }
                     std::cout << std::endl;
                 }
