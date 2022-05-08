@@ -21,7 +21,7 @@ namespace Communication
 
 Client::Client(bool verbose) : m_verbose(true)
 {
-  m_mutex = new std::mutex();
+    m_mutex = new std::mutex();
 #ifdef WIN32
     WSADATA wsa;
     int err = WSAStartup(MAKEWORD(2, 2), &wsa);
@@ -88,16 +88,16 @@ Client::setup_socket(const char *address, int port, int timeout)
     sin.sin_port = htons(port);
     sin.sin_family = AF_INET;
 
-    
-    if(timeout!=-1)
-      this->SetSocketBlockingEnabled(false); //set socket non-blocking
+    if(timeout != -1)
+        this->SetSocketBlockingEnabled(false); //set socket non-blocking
     res = connect(m_fd, (SOCKADDR *)&sin, sizeof(SOCKADDR)); //try to connect
-    if(timeout!=-1)
-      this->SetSocketBlockingEnabled(true); //set socket blocking
+    if(timeout != -1)
+        this->SetSocketBlockingEnabled(true); //set socket blocking
 
-    LOG("\x1b[34m[TCP SOCKET]\x1b[0m\tConnection to %s in progress\x1b[5m...\x1b[0m (timeout "
-            "%ds)\x1b[16D",
-            id.c_str(), timeout);
+    LOG("\x1b[34m[TCP SOCKET]\x1b[0m\tConnection to %s in "
+        "progress\x1b[5m...\x1b[0m (timeout "
+        "%ds)\x1b[16D",
+        id.c_str(), timeout);
 
     if(res < 0 && errno == EINPROGRESS) //if not connected instantaneously
     {
@@ -105,8 +105,8 @@ Client::setup_socket(const char *address, int port, int timeout)
         FD_ZERO(&wait_set);      //clear fd set
         FD_SET(m_fd, &wait_set); //add m_fd to the set
         res = select(m_fd + 1,  // return if one of the set could be wrt/rd/expt
-                     NULL, //reading set of fd to watch
-                     &wait_set,      //writing set of fd to watch
+                     NULL,      //reading set of fd to watch
+                     &wait_set, //writing set of fd to watch
                      NULL,      //exepting set of fd to watch
                      &tv);      //timeout before stop watching
         if(res < 1)
@@ -128,7 +128,6 @@ Client::setup_socket(const char *address, int port, int timeout)
         LOG("\t\tConnected to [%s:%d]\n", address, port);
         m_is_connected = true;
     }
-    
 
     return 1;
 }
@@ -136,22 +135,22 @@ Client::setup_socket(const char *address, int port, int timeout)
 int
 Client::setup_serial(const char *path, int flags)
 {
+    std::string id =
+        "[" + std::string(path) + ":" + std::to_string(flags) + "]";
+
+    LOG("\x1b[34m[TCP SOCKET]\x1b[0m\tConnection to %s in "
+        "progress\x1b[5m...\x1b[0m\n",
+        id.c_str());
     m_fd = open(path, flags);
-    std::cout << "> Check connection: " << std::flush;
+    std::cout << "> Check connection: " << m_fd << std::flush;
     if(m_fd < 0)
-    {
-        std::cerr << "[ERROR] Could not open the serial port." << std::endl;
-        exit(-1);
-    }
+        throw id + "[ERROR] Could not open the serial port.";
+
     std::cout << "OK\n" << std::flush;
 
     struct termios tty;
     if(tcgetattr(m_fd, &tty) != 0)
-    {
-        std::cerr << "[ERROR] Could not get the serial port settings."
-                  << std::endl;
-        exit(-1);
-    }
+        throw id + "[ERROR] Could not get the serial port settings.";
 
     tty.c_cflag &= ~PARENB;  // Clear parity bit, disabling parity (most common)
     tty.c_cflag &= ~CSTOPB;  // Clear stop field, only 1 stop bit (most common)
@@ -173,57 +172,53 @@ Client::setup_serial(const char *path, int flags)
     // tty.c_oflag &= ~OXTABS; // Prevent conversion of tabs to spaces (NOT PRESENT ON LINUX)
     // tty.c_oflag &= ~ONOEOT; // Prevent removal of C-d chars (0x004) in output (NOT PRESENT ON LINUX)
 
-    tty.c_cc[VTIME] = 0; // Wait for up to 1s, ret when any data is received.
+    tty.c_cc[VTIME] = 4; // Wait for up to 1s, ret when any data is received.
     tty.c_cc[VMIN] = 0;
 
     // Set in/out baud rate to be 9600
-    cfsetispeed(&tty, B115200);
-    cfsetospeed(&tty, B115200);
+    cfsetispeed(&tty, B500000);
+    cfsetospeed(&tty, B500000);
 
     // Save tty settings, also checking for error
     if(tcsetattr(m_fd, TCSANOW, &tty) != 0)
-    {
-        std::cerr << "[ERROR] Could not set the serial port settings."
-                  << std::endl;
-        exit(-1);
-    }
+        throw id + "[ERROR] Could not set the serial port settings.";
     return m_fd;
 }
 
 int
-Client::readS(uint8_t *buffer, size_t n)
+Client::readS(uint8_t *buffer, size_t size)
 {
-  std::lock_guard<std::mutex> lck (*m_mutex);//ensure only one thread using it
-    int nn = 0;
-    //std::cout << "reading" << std::endl;
-    if((nn = recv(m_fd, buffer, n, 0)) < 0)
-    {
-        perror("recv()");
-        exit(errno);
-    }
-    //std::cout << "read" << std::endl;
-    return nn;
+    std::lock_guard<std::mutex> lck(*m_mutex); //ensure only one thread using it
+    int n = 0;
+    if(m_comm_mode == SOCKET_MODE)
+        n = recv(m_fd, buffer, size, 0);
+    else if(m_comm_mode == SERIAL_MODE)
+        n = read(m_fd, buffer, size);
+    if(n < size)
+        throw "reading error: " + std::to_string(n) + "/" +std::to_string(size);
+
+    return n;
 }
 
 int
 Client::writeS(const void *buffer, size_t size)
 {
-  std::lock_guard<std::mutex> lck (*m_mutex);//ensure only one thread using it
+    std::lock_guard<std::mutex> lck(*m_mutex); //ensure only one thread using it
     int n = 0;
-    //std::cout << "writing" << std::endl;
-    if((n = send(m_fd, buffer, size, 0)) < 0)
-    {
-        perror("send()");
-        exit(errno);
-    }
-    //std::cout << "written" << std::endl;
+    if(m_comm_mode == SOCKET_MODE)
+        n = send(m_fd, buffer, size, 0);
+    else if(m_comm_mode == SERIAL_MODE)
+        n = write(m_fd, buffer, size);
+    if(n < size)
+      throw "Writing error: " + std::to_string(n) + "/" +std::to_string(size);
+
     return n;
 }
 
 bool
 Client::SetSocketBlockingEnabled(bool blocking)
 {
-  std::lock_guard<std::mutex> lck (*m_mutex);//ensure only one thread using it
+    std::lock_guard<std::mutex> lck(*m_mutex); //ensure only one thread using it
     if(m_fd < 0)
         return false;
 

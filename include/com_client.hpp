@@ -51,28 +51,26 @@ class Client
     ~Client();
 
     void
-    setup()
+    clean_start()
     {
         // ARDUINO SIDE
-        // Serial.write(0x40);
+        // Serial.write(0xaa);
         // char c;
         // while (c != 0xbb)
-        // {
         //   c = Serial.read();
-        // }
 
         uint8_t buff[1] = {'.'};
         std::cout << "Connecting" << std::flush;
-        while(buff[0] != 0x40) //empty the random char
+        while(buff[0] != 0xaa) //empty the random char
         {
             if(this->readS(buff, 1) > 0)
-                std::cout << buff[0] << std::flush;
+                std::cout << "." << std::flush;
             usleep(1000);
         }
         buff[0] = 0xbb;
         this->writeS(buff, 1);
-        usleep(10000);
-        std::cout << std::endl;
+	std::cout  << std::endl;
+        usleep(1000000);
     };
 
     int

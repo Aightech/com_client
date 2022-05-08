@@ -33,7 +33,7 @@ main(int argc, char **argv)
 	return 0;
     }
     
-    device.setup();
+    device.clean_start();
 
     try
     {
