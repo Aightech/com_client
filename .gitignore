@@ -22,6 +22,7 @@
 !README.org
 !CMakeLists.txt
 !CMakeFunctions.txt
+!CMakeConfig.txt
 !Doxyfile
 !todo.org
 !/.dir-locals.el

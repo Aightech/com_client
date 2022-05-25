@@ -1,4 +1,4 @@
 [submodule "tool_lib/built_lsl"]
 	path = tool_lib/built_lsl
 	url = git@github.com:Aightech/built_lsl
-	branch = main	branch=main
+	branch = main
