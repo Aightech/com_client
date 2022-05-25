@@ -1,37 +1,59 @@
 cmake_minimum_required(VERSION 3.3)
 ###### Author: Alexis Devillard
-###### Date:   27/04/2022
+###### Date:   25/05/2022
 ###### Brief: This CmakeLists.txt file enable to build generic project with the following structure:
-######                                +---------+
-######                                | project |
-######                                +----+----+
-######                                     |
-######            +----------+------------++-------------+-----------+
-######            |          |            |              |           |
-######         +--+--+  +----+----+ +-----+------+ +-----+------+ +--+--+
-######         | src |  | include | | CMakelists | | CMakefunct | | lib |
-######         +--+--+  +----+----+ |    .txt    | |  ions.txt  | +--+--+
-######            |          |      +------------+ +------------+    |
-######      +-----+------+   |                                       |
-######      |            |   +-------+            +--------------+---+
-###### +----+-----+      |           |            |              |
-###### | main.cpp | +----+----+ +----+----+ +-----+------+ +-----+------+
-###### +----------+ | lib.cpp | | lib.hpp | | subproject | | subproject |
-######              +---------+ +---------+ |     1      | |     2      |
-######                                      +-----+------+ +------------+
-######                                            |
-######                        +-----------+-------+------+-----------+
-######                        |           |              |           |
-######                     +--+---+ +-----+------+ +-----+------+ +--+--+
-######                     | .git | | CMakelists | | CMakeFunct | | ... |
-######                     +------+ |    .txt    | |  ions.txt  | +-----+
-######                              +------------+ +------------+
-###### 
-######
-
-###### PROJECT NAME AND VERSION ######
-set(EXEC_NAME com_client)
-set(PROJECT_VERSION 1.19)
+###### ┌─────────┐                        ┌────────────────────┐
+###### │ project │                        │ CMakeList.txt      │
+###### └─┬───────┘                     ┌──┤ CMakeConfig.txt    │
+######   │                             │  │ CmakeFunctions.txt │
+######   ├───────────┬───────┬──────┬──┘  └────────────────────┘
+######   │           │       │      │
+######   │      ┌────┴────┐  │   ┌──┴──┐     ┌─────────────┐
+######   │      │ include │  │   │ lib ├──┬──┤ subproject1 │
+######   │      └────┬────┘  │   └─────┘  │  └──────┬──────┘
+######   │           │       │            │         │
+######   │      ┌────┴────┐  │    modules │     ┌───┴──────────────┐
+######   │      │ lib.hpp │  │    for the │     │                  │
+######   │      └─────────┘  │    library │  ┌──┴──┐          ┌────┴────┐
+######   │                   │    target  │  │ src │          │ include │
+######  ┌┴────┐              │            │  └─┬───┘          └────┬────┘
+######  │ src │              │            │    │                   │
+######  └─┬───┘              │            │    │ ┌──────────┐ ┌────┴────┐
+######    │                  │            │    ├─┤ main.cpp │ │ lib.hpp │
+######    │ ┌──────────┐     │            │    │ └──────────┘ └─────────┘
+######    ├─┤ main.cpp │     │            │    │
+######    │ └──────────┘     │            │    │ ┌─────────┐
+######    │                  │            │    └─┤ lib.cpp │
+######    │ ┌─────────┐      │            │      └─────────┘
+######    └─┤ lib.cpp │      │            │
+######      └─────────┘      │            │  ┌───────────────┐
+######                       │            └──┤ subproject ...│
+######                       │               └───────────────┘
+######                       │
+######                      ┌┴─────────┐     ┌─────────────┐
+######                      │ tool_lib ├──┬──┤ subproject1 │
+######                      └──────────┘  │  └──────┬──────┘
+######                                    │         │
+######                          modules   │     ┌───┴──────────────┐
+######                          for the   │     │                  │
+######                          exe file  │  ┌──┴──┐          ┌────┴────┐
+######                          target    │  │ src │          │ include │
+######                                    │  └─┬───┘          └────┬────┘
+######                                    │    │                   │
+######                                    │    │ ┌──────────┐ ┌────┴────┐
+######                                    │    ├─┤ main.cpp │ │ lib.hpp │
+######                                    │    │ └──────────┘ └─────────┘
+######                                    │    │
+######                                    │    │ ┌─────────┐
+######                                    │    └─┤ lib.cpp │
+######                                    │      └─────────┘
+######                                    │
+######                                    │  ┌───────────────┐
+######                                    └──┤ subproject ...│
+######                                       └───────────────┘
+				   
+########### PROJECT NAME AND VERSION ######
+include(CMakeConfig.txt)
 project(${EXEC_NAME} VERSION ${PROJECT_VERSION})
 
 ###### LIBRARY NAME ######
@@ -60,43 +82,6 @@ else ()
   set(CMAKE_CXX_STANDARD 11)
   set(CMAKE_CXX_STANDARD_REQUIRED True)
   
-  set(EXTRA_LIBS "")
-  ###### Special libraries ######
-  if(0)
-    set(EXTRA_LIBS "pthread" "util")
-  endif()
-
-  ###### Boost libraries ######
-  if(0)
-    find_package(Boost 1.56 REQUIRED COMPONENTS system filesystem iostreams)
-    if (Boost_FOUND)
-      list(APPEND EXTRA_LIBS ${Boost_IOSTREAMS_LIBRARY} ${Boost_SYSTEM_LIBRARY} ${Boost_FILESYSTEM_LIBRARY})
-    else ()
-      message("Couldn't find Boost library")
-    endif (Boost_FOUND)
-  endif()
-
-  ###### SFML libraries ######
-  if(0)
-    find_package(SFML REQUIRED COMPONENTS graphics window system)
-    if (SFML_FOUND)
-      list(APPEND EXTRA_LIBS "sfml-graphics" "sfml-window" "sfml-system")
-    else ()
-      message("Couldn't find SFML library")
-    endif (SFML_FOUND)
-  endif()
-
-  ###### OpenCV libraries ######
-  if(0)
-    find_package(OpenCV REQUIRED)
-    if (OpenCV_FOUND)
-      list(APPEND EXTRA_LIBS ${OpenCV_LIBS})
-      list(APPEND EXTRA_INCLUDES ${OpenCV_INCLUDE_DIRS})
-      message("-- Opencv library Found")
-    else ()
-      message("Couldn't find Opencv library")
-    endif (OpenCV_FOUND)
-  endif()
 
   ###### Get the sources and headers ######
   ###### Exec main src file ######
@@ -220,3 +205,4 @@ endif()
 # # do a bunch of result based tests
 # do_test(canopen 1 1000 0 "")
 # do_test(canopen 2 607A 0 4 d 1000 "")
+
