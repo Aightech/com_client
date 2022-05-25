@@ -31,7 +31,7 @@ cmake_minimum_required(VERSION 3.3)
 
 ###### PROJECT NAME AND VERSION ######
 set(EXEC_NAME com_client)
-set(PROJECT_VERSION 1.17)
+set(PROJECT_VERSION 1.18)
 project(${EXEC_NAME} VERSION ${PROJECT_VERSION})
 
 ###### LIBRARY NAME ######
@@ -59,7 +59,8 @@ else ()
   ###### C++ standard ######
   set(CMAKE_CXX_STANDARD 11)
   set(CMAKE_CXX_STANDARD_REQUIRED True)
-
+  
+  set(EXTRA_LIBS "")
   ###### Special libraries ######
   if(0)
     set(EXTRA_LIBS "pthread" "util")
@@ -99,7 +100,7 @@ else ()
 
   ###### Get the sources and headers ######
   ###### Exec main src file ######
-  set(MAIN_FILE "src/main.cpp")
+  set(MAIN_FILE "${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp")
   ###### Exec-only header file ######
   set(EXTRA_HEADERS "include/gnuplot-iostream.h")
 
@@ -142,7 +143,7 @@ else ()
 	execute_process(COMMAND git submodule update --remote --merge --init -- "lib/${subdir}"
 	  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} OUTPUT_VARIABLE OUTPUT)
       endif()
-      subproject_version("${subdir}" subdir_version)#get the version
+      subproject_version("lib/${subdir}" subdir_version)#get the version
       message("${PREFIX_MSG}-- ${ColourBold}${Esc}[${color_code}m${EXEC_NAME}${ColourReset}: Adding library ${ColourBold}${Esc}[${color_code2}m${subdir}${ColourReset} version: ${ColourBold}${subdir_version}${ColourReset}")
       add_subdirectory("lib/${subdir}")
       
@@ -151,6 +152,31 @@ else ()
 	DEFINITION LIB_NAME)
       list(APPEND EXTRA_LIBS "${libname}")
       link_directories(${CMAKE_SOURCE_DIR}/lib/${subdir}/bin)    
+    endforeach()
+  endif()
+
+  ###### Search for Subdirectories/Libraries ######
+  if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tool_lib")
+    execute_process(COMMAND git submodule status
+      WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+      OUTPUT_VARIABLE SUBMODULES_LIST)
+    subdirlist(LIBS "${CMAKE_CURRENT_SOURCE_DIR}/tool_lib/")
+    foreach(subdir ${LIBS})
+      string(FIND "${SUBMODULES_LIST}" "${subdir}" FOUND)
+      if(${FOUND} GREATER -1 AND NO_CONNECTION EQUAL 1 )
+	#git submodules init
+	execute_process(COMMAND git submodule update --remote --merge --init -- "tool_lib/${subdir}"
+	  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} OUTPUT_VARIABLE OUTPUT)
+      endif()
+      subproject_version("tool_lib/${subdir}" subdir_version)#get the version
+      message("${PREFIX_MSG}-- ${ColourBold}${Esc}[${color_code}m${EXEC_NAME}${ColourReset}: Adding ${ColourBold}tool${ColourReset} library ${ColourBold}${Esc}[${color_code2}m${subdir}${ColourReset} version: ${ColourBold}${subdir_version}${ColourReset}")
+      add_subdirectory("tool_lib/${subdir}")
+      
+      get_directory_property(libname
+	DIRECTORY "tool_lib/${subdir}"
+	DEFINITION LIB_NAME)
+      list(APPEND TOOL_LIBS "${libname}")
+      link_directories(${CMAKE_SOURCE_DIR}/tool_lib/${subdir}/bin)    
     endforeach()
   endif()
 
@@ -169,7 +195,7 @@ else ()
   add_executable(${EXEC_NAME} ${MAIN_FILE})
   target_link_libraries (${EXEC_NAME}
     PUBLIC ${LIB_NAME}
-    PUBLIC ${EXTRA_LIBS})
+    PUBLIC ${TOOL_LIBS})
   target_include_directories(${EXEC_NAME}
     PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 
