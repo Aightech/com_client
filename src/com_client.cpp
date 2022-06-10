@@ -3,11 +3,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "com_client.hpp"
 #include <cerrno>
 #include <clocale>
 #include <cstring>
-
-#include "com_client.hpp"
+#include <strANSIseq.hpp>
 
 #define LOG(...)             \
     if(m_verbose)            \
@@ -18,6 +18,8 @@
 
 namespace Communication
 {
+
+using namespace ESC;
 
 Client::Client(bool verbose) : m_verbose(true)
 {
@@ -88,16 +90,17 @@ Client::setup_socket(const char *address, int port, int timeout)
     sin.sin_port = htons(port);
     sin.sin_family = AF_INET;
 
+    LOG("%s\tConnection to %s in progress%s (timeout=%ds)\n",
+        fstr("[TCP SOCKET]", {BOLD, FG_CYAN}).c_str(),
+	id.c_str(),
+	fstr("...", {BLINK_SLOW}).c_str(),
+	timeout);
+
     if(timeout != -1)
         this->SetSocketBlockingEnabled(false); //set socket non-blocking
     res = connect(m_fd, (SOCKADDR *)&sin, sizeof(SOCKADDR)); //try to connect
     if(timeout != -1)
         this->SetSocketBlockingEnabled(true); //set socket blocking
-
-    LOG("\x1b[34m[TCP SOCKET]\x1b[0m\tConnection to %s in "
-        "progress\x1b[5m...\x1b[0m (timeout "
-        "%ds)\x1b[16D",
-        id.c_str(), timeout);
 
     if(res < 0 && errno == EINPROGRESS) //if not connected instantaneously
     {
@@ -110,13 +113,14 @@ Client::setup_socket(const char *address, int port, int timeout)
                      NULL,      //exepting set of fd to watch
                      &tv);      //timeout before stop watching
         if(res < 1)
-            LOG("\x1b[1;31m NO \x1b[0m\n");
+            LOG("\t\tCould not connect to %s\n", fstr(id, {BOLD, FG_RED}).c_str());
         if(res == -1)
             throw id + std::string(" Error with select()");
         else if(res == 0)
             throw id + std::string(" Connection timed out");
+        res = 0;
     }
-    if(res)
+    if(res == 0)
     {
         int opt; // check for errors in socket layer
         socklen_t len = sizeof(opt);
@@ -124,8 +128,7 @@ Client::setup_socket(const char *address, int port, int timeout)
             throw id + std::string(" Error retrieving socket options");
         if(opt) // there was an error
             throw id + " " + std::string(std::strerror(opt));
-        LOG("\x1b[32m OK \x1b[0m\n");
-        LOG("\t\tConnected to [%s:%d]\n", address, port);
+        LOG("\t\tConnected to %s\n", fstr(id, {BOLD, FG_GREEN}).c_str());
         m_is_connected = true;
     }
 
@@ -195,7 +198,8 @@ Client::readS(uint8_t *buffer, size_t size)
     else if(m_comm_mode == SERIAL_MODE)
         n = read(m_fd, buffer, size);
     if(n < size)
-        throw "reading error: " + std::to_string(n) + "/" +std::to_string(size);
+        throw "reading error: " + std::to_string(n) + "/" +
+            std::to_string(size);
 
     return n;
 }
@@ -210,7 +214,8 @@ Client::writeS(const void *buffer, size_t size)
     else if(m_comm_mode == SERIAL_MODE)
         n = write(m_fd, buffer, size);
     if(n < size)
-      throw "Writing error: " + std::to_string(n) + "/" +std::to_string(size);
+        throw "Writing error: " + std::to_string(n) + "/" +
+            std::to_string(size);
 
     return n;
 }
