@@ -23,6 +23,7 @@ using namespace ESC;
 
 Client::Client(bool verbose) : m_verbose(true)
 {
+    mk_crctable();
     m_mutex = new std::mutex();
 #ifdef WIN32
     WSADATA wsa;
@@ -91,10 +92,8 @@ Client::setup_socket(const char *address, int port, int timeout)
     sin.sin_family = AF_INET;
 
     LOG("%s\tConnection to %s in progress%s (timeout=%ds)\n",
-        fstr("[TCP SOCKET]", {BOLD, FG_CYAN}).c_str(),
-	id.c_str(),
-	fstr("...", {BLINK_SLOW}).c_str(),
-	timeout);
+        fstr("[TCP SOCKET]", {BOLD, FG_CYAN}).c_str(), id.c_str(),
+        fstr("...", {BLINK_SLOW}).c_str(), timeout);
 
     if(timeout != -1)
         this->SetSocketBlockingEnabled(false); //set socket non-blocking
@@ -113,7 +112,8 @@ Client::setup_socket(const char *address, int port, int timeout)
                      NULL,      //exepting set of fd to watch
                      &tv);      //timeout before stop watching
         if(res < 1)
-            LOG("\t\tCould not connect to %s\n", fstr(id, {BOLD, FG_RED}).c_str());
+            LOG("\t\tCould not connect to %s\n",
+                fstr(id, {BOLD, FG_RED}).c_str());
         if(res == -1)
             throw id + std::string(" Error with select()");
         else if(res == 0)
@@ -237,6 +237,43 @@ Client::SetSocketBlockingEnabled(bool blocking)
     flags = blocking ? (flags & ~O_NONBLOCK) : (flags | O_NONBLOCK);
     return (fcntl(m_fd, F_SETFL, flags) == 0) ? true : false;
 #endif
+}
+
+void
+Client::mk_crctable(uint16_t poly)
+{
+    for(int i = 0; i < 256; i++) m_crctable[i] = crchware(i, poly, 0);
+}
+
+uint16_t
+Client::crchware(uint16_t data, uint16_t genpoly, uint16_t accum)
+{
+    static int i;
+    data <<= 8;
+    for(i = 8; i > 0; i--)
+    {
+        if((data ^ accum) & 0x8000)
+            accum = (accum << 1) ^ genpoly;
+        else
+            accum <<= 1;
+        data <<= 1;
+    }
+    return accum;
+}
+
+void
+Client::CRC_check(uint8_t data)
+{
+    m_crc_accumulator =
+        (m_crc_accumulator << 8) ^ m_crctable[(m_crc_accumulator >> 8) ^ data];
+};
+
+uint16_t
+Client::CRC(uint8_t *buf, int n)
+{
+    m_crc_accumulator = 0;
+    for(int i = 0; i < n; i++) CRC_check(buf[i]);
+    return (m_crc_accumulator >> 8) | (m_crc_accumulator << 8);
 }
 
 } // namespace Communication
