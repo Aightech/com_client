@@ -28,7 +28,7 @@ namespace Communication
 {
 
 /**
- * @brief The Client class
+ * @brief Communication client class
  *
  * This class is used to unify the different type of communication interface (serial, IP socket, ...) and to provide a common interface to the user.
  * It is also aming to be cross-platform.
@@ -100,19 +100,21 @@ class Client
      * @brief readS read the com inmterface.
      * @param buffer Data store in buffer.
      * @param size Nb of bytes to read.
+     * @param has_crc If true the two last bytes are checked as a CRC16.
      * @return number of bytes read.
      */
     int
-    readS(uint8_t *buffer, size_t size);
+    readS(uint8_t *buffer, size_t size, bool has_crc = false);
 
     /**
      * @brief writeS write the com interface.
      * @param buffer Data to write.
      * @param size Nb of bytes to write.
+     * @param add_crc If true two more bytes are added to the buffer to store a CRC16. Be sure to have enough space in the buffer.
      * @return number of bytes written.
      */
     int
-    writeS(const void *buffer, size_t size);
+    writeS(const void *buffer, size_t size, bool add_crc = false);
 
     /**
      * @brief Check if the connection is open.

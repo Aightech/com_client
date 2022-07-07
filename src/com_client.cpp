@@ -145,7 +145,7 @@ Client::setup_serial(const char *path, int flags)
         "progress\x1b[5m...\x1b[0m\n",
         id.c_str());
     m_fd = open(path, flags);
-    std::cout << "> Check connection: " << m_fd << std::flush;
+    std::cout << "> Check connection: [fd:" << m_fd << "] "<< std::flush;
     if(m_fd < 0)
         throw id + "[ERROR] Could not open the serial port.";
 
@@ -175,7 +175,7 @@ Client::setup_serial(const char *path, int flags)
     // tty.c_oflag &= ~OXTABS; // Prevent conversion of tabs to spaces (NOT PRESENT ON LINUX)
     // tty.c_oflag &= ~ONOEOT; // Prevent removal of C-d chars (0x004) in output (NOT PRESENT ON LINUX)
 
-    tty.c_cc[VTIME] = 4; // Wait for up to 1s, ret when any data is received.
+    tty.c_cc[VTIME] = 40; // Wait for up to 4s, ret when any data is received.
     tty.c_cc[VMIN] = 0;
 
     // Set in/out baud rate to be 9600
@@ -185,11 +185,12 @@ Client::setup_serial(const char *path, int flags)
     // Save tty settings, also checking for error
     if(tcsetattr(m_fd, TCSANOW, &tty) != 0)
         throw id + "[ERROR] Could not set the serial port settings.";
+    std::cout << "> Serial port settings saved.\n" << std::flush;
     return m_fd;
 }
 
 int
-Client::readS(uint8_t *buffer, size_t size)
+Client::readS(uint8_t *buffer, size_t size, bool has_crc)
 {
     std::lock_guard<std::mutex> lck(*m_mutex); //ensure only one thread using it
     int n = 0;
@@ -197,26 +198,22 @@ Client::readS(uint8_t *buffer, size_t size)
         n = recv(m_fd, buffer, size, 0);
     else if(m_comm_mode == SERIAL_MODE)
         n = read(m_fd, buffer, size);
-    if(n < size)
-        throw "reading error: " + std::to_string(n) + "/" +
-            std::to_string(size);
-
+    if(has_crc &&
+       this->CRC(buffer, size - 2) != *(uint16_t *)(buffer + size - 2))
+        return -1; //crc error
     return n;
 }
 
 int
-Client::writeS(const void *buffer, size_t size)
+Client::writeS(const void *buffer, size_t size, bool add_crc)
 {
     std::lock_guard<std::mutex> lck(*m_mutex); //ensure only one thread using it
     int n = 0;
+    *(uint16_t *)((uint8_t *)buffer + size) = CRC((uint8_t*)buffer, size); // add crc
     if(m_comm_mode == SOCKET_MODE)
-        n = send(m_fd, buffer, size, 0);
+        n = send(m_fd, buffer, size + 2 * add_crc, 0);
     else if(m_comm_mode == SERIAL_MODE)
-        n = write(m_fd, buffer, size);
-    if(n < size)
-        throw "Writing error: " + std::to_string(n) + "/" +
-            std::to_string(size);
-
+        n = write(m_fd, buffer, size + 2 * add_crc);
     return n;
 }
 
