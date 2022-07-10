@@ -25,7 +25,14 @@ main(int argc, char **argv)
 
     try
     {
-        device.open_connection(path.c_str(), port);
+        if(port==-1)
+            {
+                device.open_connection(Communication::Client::SERIAL, path.c_str());
+            }
+            else
+            {
+                device.open_connection(Communication::Client::TCP, path.c_str(), port);
+            }
     }
     catch(std::string msg)
     {

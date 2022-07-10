@@ -52,8 +52,9 @@ class Client
     public:
     enum Mode
     {
-        SERIAL_MODE,
-        SOCKET_MODE
+        SERIAL,
+        TCP,
+        UDP
     };
 
     Client(bool verbose = false);
@@ -90,7 +91,8 @@ class Client
      * @return
      */
     int
-    open_connection(const char *address,
+    open_connection(Mode mode,
+                    const char *address,
                     int port = -1,
                     int flags = O_RDWR | O_NOCTTY);
     int
@@ -175,7 +177,16 @@ class Client
      * @return int return the file descriptor of the socket.
      */
     int
-    setup_socket(const char *address, int port, int timeout = 2);
+    setup_TCP_socket(const char *address, int port, int timeout = 2);
+
+    /**
+     * @brief setup_socket Set up the socket object.
+     * @param address IP address of the server.
+     * @param port Port of the server.
+     * @return int return the file descriptor of the socket.
+     */
+    int
+    setup_UDP_socket(const char *address, int port, int timeout = 2);
 
     /** Returns true on success, or false if there was an error */
     bool
@@ -188,6 +199,8 @@ class Client
     std::mutex *m_mutex;
     uint16_t m_crctable[256];
     uint16_t m_crc_accumulator;
+    SOCKADDR_IN m_addr_to = { 0 };
+    socklen_t m_size_addr;
 };
 
 } // namespace Communication

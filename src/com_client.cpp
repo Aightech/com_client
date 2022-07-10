@@ -45,17 +45,17 @@ Client::~Client(void)
 }
 
 int
-Client::open_connection(const char *address, int port, int flags)
+Client::open_connection(Mode mode, const char *address, int port, int flags)
 {
-    if(port == -1)
-        m_comm_mode = SERIAL_MODE;
-    else
-        m_comm_mode = SOCKET_MODE;
+    m_comm_mode = mode;
 
-    if(m_comm_mode == SERIAL_MODE)
+    if(m_comm_mode == SERIAL)
         this->setup_serial(address, flags);
-    else if(m_comm_mode == SOCKET_MODE)
-        this->setup_socket(address, port,
+    else if(m_comm_mode == TCP)
+        this->setup_TCP_socket(address, port,
+                           ((O_RDWR | O_NOCTTY) == flags) ? -1 : flags);
+    else if(m_comm_mode == UDP)
+        this->setup_UDP_socket(address, port,
                            ((O_RDWR | O_NOCTTY) == flags) ? -1 : flags);
 
     usleep(100000);
@@ -70,7 +70,7 @@ Client::close_connection()
 }
 
 int
-Client::setup_socket(const char *address, int port, int timeout)
+Client::setup_TCP_socket(const char *address, int port, int timeout)
 {
     SOCKADDR_IN sin = {0};
     struct hostent *hostinfo;
@@ -135,13 +135,42 @@ Client::setup_socket(const char *address, int port, int timeout)
     return 1;
 }
 
+
+int
+Client::setup_UDP_socket(const char *address, int port, int timeout)
+{
+    struct hostent *hostinfo;
+    std::string id =
+        "[" + std::string(address) + ":" + std::to_string(port) + "]";
+
+    m_fd = socket(AF_INET, SOCK_DGRAM, 0);
+    if(m_fd == INVALID_SOCKET)
+        throw std::string("socket() invalid");
+
+    hostinfo = gethostbyname(address);
+    if(hostinfo == NULL)
+        throw std::string("Unknown host") + address;
+
+    m_addr_to.sin_addr = *(IN_ADDR *)hostinfo->h_addr;
+    m_addr_to.sin_port = htons(port);
+    m_addr_to.sin_family = AF_INET;
+
+    m_size_addr = sizeof(m_addr_to);
+
+    LOG("%s\tUDP socket to %s is setup. \n",
+        fstr("[UDP SOCKET]", {BOLD, FG_CYAN}).c_str(), id.c_str());
+
+
+    return 1;
+}
+
 int
 Client::setup_serial(const char *path, int flags)
 {
     std::string id =
         "[" + std::string(path) + ":" + std::to_string(flags) + "]";
 
-    LOG("\x1b[34m[TCP SOCKET]\x1b[0m\tConnection to %s in "
+    LOG("\x1b[34m[SERIAL]\x1b[0m\tConnection to %s in "
         "progress\x1b[5m...\x1b[0m\n",
         id.c_str());
     m_fd = open(path, flags);
@@ -194,10 +223,13 @@ Client::readS(uint8_t *buffer, size_t size, bool has_crc)
 {
     std::lock_guard<std::mutex> lck(*m_mutex); //ensure only one thread using it
     int n = 0;
-    if(m_comm_mode == SOCKET_MODE)
+    if(m_comm_mode == TCP)
         n = recv(m_fd, buffer, size, 0);
-    else if(m_comm_mode == SERIAL_MODE)
+    else if(m_comm_mode == UDP)
+        n = recvfrom(m_fd, buffer, size, MSG_WAITALL, (SOCKADDR *)&m_addr_to, &m_size_addr);
+    else if(m_comm_mode == SERIAL)
         n = read(m_fd, buffer, size);
+    std::cout << ">  " << n  << " " << MSG_WAITALL<< std::endl;
     if(has_crc &&
        this->CRC(buffer, size - 2) != *(uint16_t *)(buffer + size - 2))
         return -1; //crc error
@@ -210,9 +242,11 @@ Client::writeS(const void *buffer, size_t size, bool add_crc)
     std::lock_guard<std::mutex> lck(*m_mutex); //ensure only one thread using it
     int n = 0;
     *(uint16_t *)((uint8_t *)buffer + size) = CRC((uint8_t*)buffer, size); // add crc
-    if(m_comm_mode == SOCKET_MODE)
+    if(m_comm_mode == TCP)
         n = send(m_fd, buffer, size + 2 * add_crc, 0);
-    else if(m_comm_mode == SERIAL_MODE)
+    if(m_comm_mode == UDP)
+        n = sendto(m_fd, buffer, size + 2 * add_crc, 0, (SOCKADDR *)&m_addr_to, m_size_addr);
+    else if(m_comm_mode == SERIAL)
         n = write(m_fd, buffer, size + 2 * add_crc);
     return n;
 }
