@@ -229,7 +229,7 @@ Client::readS(uint8_t *buffer, size_t size, bool has_crc)
         n = recvfrom(m_fd, buffer, size, MSG_WAITALL, (SOCKADDR *)&m_addr_to, &m_size_addr);
     else if(m_comm_mode == SERIAL)
         n = read(m_fd, buffer, size);
-    std::cout << ">  " << n  << " " << MSG_WAITALL<< std::endl;
+    //std::cout << ">  " << n  << " " << MSG_WAITALL<< std::endl;
     if(has_crc &&
        this->CRC(buffer, size - 2) != *(uint16_t *)(buffer + size - 2))
         return -1; //crc error
