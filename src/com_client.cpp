@@ -9,13 +9,6 @@
 #include <cstring>
 #include <strANSIseq.hpp>
 
-#define LOG(...)             \
-    if(m_verbose)            \
-    {                        \
-        printf(__VA_ARGS__); \
-        fflush(stdout);      \
-    }
-
 namespace Communication
 {
 
@@ -53,10 +46,10 @@ Client::open_connection(Mode mode, const char *address, int port, int flags)
         this->setup_serial(address, flags);
     else if(m_comm_mode == TCP)
         this->setup_TCP_socket(address, port,
-                           ((O_RDWR | O_NOCTTY) == flags) ? -1 : flags);
+                               ((O_RDWR | O_NOCTTY) == flags) ? -1 : flags);
     else if(m_comm_mode == UDP)
         this->setup_UDP_socket(address, port,
-                           ((O_RDWR | O_NOCTTY) == flags) ? -1 : flags);
+                               ((O_RDWR | O_NOCTTY) == flags) ? -1 : flags);
 
     usleep(100000);
 
@@ -66,7 +59,13 @@ Client::open_connection(Mode mode, const char *address, int port, int flags)
 int
 Client::close_connection()
 {
-    return closesocket(m_fd);
+    LOG("%s\t%s Closing connection%s",
+        fstr("[TCP SOCKET]", {BOLD, FG_CYAN}).c_str(),
+        fstr(m_id, {BOLD}).c_str(),
+        fstr("...", {BLINK_SLOW}).c_str());
+    int n = closesocket(m_fd);
+    LOG("\b\b\b%s (%d)\n", fstr(" OK", {BOLD, FG_GREEN}).c_str(), n);
+    return n;
 }
 
 int
@@ -76,7 +75,7 @@ Client::setup_TCP_socket(const char *address, int port, int timeout)
     struct hostent *hostinfo;
     TIMEVAL tv = {.tv_sec = timeout, .tv_usec = 0};
     int res;
-    std::string id =
+    m_id =
         "[" + std::string(address) + ":" + std::to_string(port) + "]";
 
     m_fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -92,7 +91,7 @@ Client::setup_TCP_socket(const char *address, int port, int timeout)
     sin.sin_family = AF_INET;
 
     LOG("%s\tConnection to %s in progress%s (timeout=%ds)\n",
-        fstr("[TCP SOCKET]", {BOLD, FG_CYAN}).c_str(), id.c_str(),
+        fstr("[TCP SOCKET]", {BOLD, FG_CYAN}).c_str(), m_id.c_str(),
         fstr("...", {BLINK_SLOW}).c_str(), timeout);
 
     if(timeout != -1)
@@ -113,11 +112,11 @@ Client::setup_TCP_socket(const char *address, int port, int timeout)
                      &tv);      //timeout before stop watching
         if(res < 1)
             LOG("\t\tCould not connect to %s\n",
-                fstr(id, {BOLD, FG_RED}).c_str());
+                fstr(m_id, {BOLD, FG_RED}).c_str());
         if(res == -1)
-            throw id + std::string(" Error with select()");
+            throw m_id + std::string(" Error with select()");
         else if(res == 0)
-            throw id + std::string(" Connection timed out");
+            throw m_id + std::string(" Connection timed out");
         res = 0;
     }
     if(res == 0)
@@ -125,22 +124,21 @@ Client::setup_TCP_socket(const char *address, int port, int timeout)
         int opt; // check for errors in socket layer
         socklen_t len = sizeof(opt);
         if(getsockopt(m_fd, SOL_SOCKET, SO_ERROR, &opt, &len) < 0)
-            throw id + std::string(" Error retrieving socket options");
+            throw m_id + std::string(" Error retrieving socket options");
         if(opt) // there was an error
-            throw id + " " + std::string(std::strerror(opt));
-        LOG("\t\tConnected to %s\n", fstr(id, {BOLD, FG_GREEN}).c_str());
+            throw m_id + " " + std::string(std::strerror(opt));
+        LOG("\t\tConnected to %s\n", fstr(m_id, {BOLD, FG_GREEN}).c_str());
         m_is_connected = true;
     }
 
     return 1;
 }
 
-
 int
 Client::setup_UDP_socket(const char *address, int port, int timeout)
 {
     struct hostent *hostinfo;
-    std::string id =
+    m_id =
         "[" + std::string(address) + ":" + std::to_string(port) + "]";
 
     m_fd = socket(AF_INET, SOCK_DGRAM, 0);
@@ -158,8 +156,7 @@ Client::setup_UDP_socket(const char *address, int port, int timeout)
     m_size_addr = sizeof(m_addr_to);
 
     LOG("%s\tUDP socket to %s is setup. \n",
-        fstr("[UDP SOCKET]", {BOLD, FG_CYAN}).c_str(), id.c_str());
-
+        fstr("[UDP SOCKET]", {BOLD, FG_CYAN}).c_str(), m_id.c_str());
 
     return 1;
 }
@@ -167,22 +164,22 @@ Client::setup_UDP_socket(const char *address, int port, int timeout)
 int
 Client::setup_serial(const char *path, int flags)
 {
-    std::string id =
+    m_id =
         "[" + std::string(path) + ":" + std::to_string(flags) + "]";
 
     LOG("\x1b[34m[SERIAL]\x1b[0m\tConnection to %s in "
         "progress\x1b[5m...\x1b[0m\n",
-        id.c_str());
+        m_id.c_str());
     m_fd = open(path, flags);
-    std::cout << "> Check connection: [fd:" << m_fd << "] "<< std::flush;
+    std::cout << "> Check connection: [fd:" << m_fd << "] " << std::flush;
     if(m_fd < 0)
-        throw id + "[ERROR] Could not open the serial port.";
+        throw m_id + "[ERROR] Could not open the serial port.";
 
     std::cout << "OK\n" << std::flush;
 
     struct termios tty;
     if(tcgetattr(m_fd, &tty) != 0)
-        throw id + "[ERROR] Could not get the serial port settings.";
+        throw m_id + "[ERROR] Could not get the serial port settings.";
 
     tty.c_cflag &= ~PARENB;  // Clear parity bit, disabling parity (most common)
     tty.c_cflag &= ~CSTOPB;  // Clear stop field, only 1 stop bit (most common)
@@ -213,7 +210,7 @@ Client::setup_serial(const char *path, int flags)
 
     // Save tty settings, also checking for error
     if(tcsetattr(m_fd, TCSANOW, &tty) != 0)
-        throw id + "[ERROR] Could not set the serial port settings.";
+        throw m_id + "[ERROR] Could not set the serial port settings.";
     std::cout << "> Serial port settings saved.\n" << std::flush;
     return m_fd;
 }
@@ -226,7 +223,8 @@ Client::readS(uint8_t *buffer, size_t size, bool has_crc)
     if(m_comm_mode == TCP)
         n = recv(m_fd, buffer, size, 0);
     else if(m_comm_mode == UDP)
-        n = recvfrom(m_fd, buffer, size, MSG_WAITALL, (SOCKADDR *)&m_addr_to, &m_size_addr);
+        n = recvfrom(m_fd, buffer, size, MSG_WAITALL, (SOCKADDR *)&m_addr_to,
+                     &m_size_addr);
     else if(m_comm_mode == SERIAL)
         n = read(m_fd, buffer, size);
     //std::cout << ">  " << n  << " " << MSG_WAITALL<< std::endl;
@@ -241,11 +239,13 @@ Client::writeS(const void *buffer, size_t size, bool add_crc)
 {
     std::lock_guard<std::mutex> lck(*m_mutex); //ensure only one thread using it
     int n = 0;
-    *(uint16_t *)((uint8_t *)buffer + size) = CRC((uint8_t*)buffer, size); // add crc
+    *(uint16_t *)((uint8_t *)buffer + size) =
+        CRC((uint8_t *)buffer, size); // add crc
     if(m_comm_mode == TCP)
         n = send(m_fd, buffer, size + 2 * add_crc, 0);
     if(m_comm_mode == UDP)
-        n = sendto(m_fd, buffer, size + 2 * add_crc, 0, (SOCKADDR *)&m_addr_to, m_size_addr);
+        n = sendto(m_fd, buffer, size + 2 * add_crc, 0, (SOCKADDR *)&m_addr_to,
+                   m_size_addr);
     else if(m_comm_mode == SERIAL)
         n = write(m_fd, buffer, size + 2 * add_crc);
     return n;

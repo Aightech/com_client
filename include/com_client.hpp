@@ -201,6 +201,7 @@ class Client
     uint16_t m_crc_accumulator;
     SOCKADDR_IN m_addr_to = { 0 };
     socklen_t m_size_addr;
+    std::string m_id; 
 };
 
 } // namespace Communication
