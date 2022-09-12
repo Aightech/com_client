@@ -7,15 +7,15 @@
 #include <cerrno>
 #include <clocale>
 #include <cstring>
-#include <strANSIseq.hpp>
 
 namespace Communication
 {
 
 using namespace ESC;
 
-Client::Client(bool verbose) : m_verbose(true)
+Client::Client(int verbose) : ESC::CLI(verbose - 1, "Client")
 {
+    logln("Init communication client.", true);
     mk_crctable();
     m_mutex = new std::mutex();
 #ifdef WIN32
@@ -59,12 +59,9 @@ Client::open_connection(Mode mode, const char *address, int port, int flags)
 int
 Client::close_connection()
 {
-    LOG("%s\t%s Closing connection%s",
-        fstr("[TCP SOCKET]", {BOLD, FG_CYAN}).c_str(),
-        fstr(m_id, {BOLD}).c_str(),
-        fstr("...", {BLINK_SLOW}).c_str());
+    logln("Closing connection ");
     int n = closesocket(m_fd);
-    LOG("\b\b\b%s (%d)\n", fstr(" OK", {BOLD, FG_GREEN}).c_str(), n);
+    logln(fstr(" OK", {BOLD, FG_GREEN}), true);
     return n;
 }
 
@@ -75,24 +72,23 @@ Client::setup_TCP_socket(const char *address, int port, int timeout)
     struct hostent *hostinfo;
     TIMEVAL tv = {.tv_sec = timeout, .tv_usec = 0};
     int res;
-    m_id =
-        "[" + std::string(address) + ":" + std::to_string(port) + "]";
+    cli_id() += ((cli_id() == "") ? "" : " - ") +
+                fstr_link(std::string(address) + ":" + std::to_string(port));
 
     m_fd = socket(AF_INET, SOCK_STREAM, 0);
     if(m_fd == INVALID_SOCKET)
-        throw std::string("socket() invalid");
+        throw log_error("socket() invalid");
 
     hostinfo = gethostbyname(address);
     if(hostinfo == NULL)
-        throw std::string("Unknown host") + address;
+        throw log_error(std::string("Unknown host") + address);
 
     sin.sin_addr = *(IN_ADDR *)hostinfo->h_addr;
     sin.sin_port = htons(port);
     sin.sin_family = AF_INET;
 
-    LOG("%s\tConnection to %s in progress%s (timeout=%ds)\n",
-        fstr("[TCP SOCKET]", {BOLD, FG_CYAN}).c_str(), m_id.c_str(),
-        fstr("...", {BLINK_SLOW}).c_str(), timeout);
+    logln("Connection in progress" + fstr("...", {BLINK_SLOW}) +
+          " (timeout=" + std::to_string(timeout) + "s)", true);
 
     if(timeout != -1)
         this->SetSocketBlockingEnabled(false); //set socket non-blocking
@@ -111,12 +107,11 @@ Client::setup_TCP_socket(const char *address, int port, int timeout)
                      NULL,      //exepting set of fd to watch
                      &tv);      //timeout before stop watching
         if(res < 1)
-            LOG("\t\tCould not connect to %s\n",
-                fstr(m_id, {BOLD, FG_RED}).c_str());
+            logln("Could not connect to " + fstr(m_id, {BOLD, FG_RED}));
         if(res == -1)
-            throw m_id + std::string(" Error with select()");
+            throw log_error(" Error with select()");
         else if(res == 0)
-            throw m_id + std::string(" Connection timed out");
+            throw log_error(" Connection timed out");
         res = 0;
     }
     if(res == 0)
@@ -124,12 +119,16 @@ Client::setup_TCP_socket(const char *address, int port, int timeout)
         int opt; // check for errors in socket layer
         socklen_t len = sizeof(opt);
         if(getsockopt(m_fd, SOL_SOCKET, SO_ERROR, &opt, &len) < 0)
-            throw m_id + std::string(" Error retrieving socket options");
+            throw log_error(" Error retrieving socket options");
         if(opt) // there was an error
-            throw m_id + " " + std::string(std::strerror(opt));
-        LOG("\t\tConnected to %s\n", fstr(m_id, {BOLD, FG_GREEN}).c_str());
+            throw log_error(std::strerror(opt));
+        logln(fstr("connected", {BOLD, FG_GREEN}));
         m_is_connected = true;
     }
+    else
+      {
+	throw log_error("Connection error");
+      }
 
     return 1;
 }
@@ -138,16 +137,16 @@ int
 Client::setup_UDP_socket(const char *address, int port, int timeout)
 {
     struct hostent *hostinfo;
-    m_id =
-        "[" + std::string(address) + ":" + std::to_string(port) + "]";
+    cli_id() += ((cli_id() == "") ? "" : " - ") +
+                fstr_link(std::string(address) + ":" + std::to_string(port));
 
     m_fd = socket(AF_INET, SOCK_DGRAM, 0);
     if(m_fd == INVALID_SOCKET)
-        throw std::string("socket() invalid");
+        throw log_error("socket() invalid");
 
     hostinfo = gethostbyname(address);
     if(hostinfo == NULL)
-        throw std::string("Unknown host") + address;
+        throw log_error(std::string("Unknown host") + address);
 
     m_addr_to.sin_addr = *(IN_ADDR *)hostinfo->h_addr;
     m_addr_to.sin_port = htons(port);
@@ -155,8 +154,7 @@ Client::setup_UDP_socket(const char *address, int port, int timeout)
 
     m_size_addr = sizeof(m_addr_to);
 
-    LOG("%s\tUDP socket to %s is setup. \n",
-        fstr("[UDP SOCKET]", {BOLD, FG_CYAN}).c_str(), m_id.c_str());
+    logln("UDP socket is setup. ", true);
 
     return 1;
 }
@@ -164,22 +162,19 @@ Client::setup_UDP_socket(const char *address, int port, int timeout)
 int
 Client::setup_serial(const char *path, int flags)
 {
-    m_id =
-        "[" + std::string(path) + ":" + std::to_string(flags) + "]";
+    cli_id() += ((cli_id() == "") ? "" : " - ") +
+                fstr_link(std::string(path) + ":" + std::to_string(flags));
 
-    LOG("\x1b[34m[SERIAL]\x1b[0m\tConnection to %s in "
-        "progress\x1b[5m...\x1b[0m\n",
-        m_id.c_str());
+    logln("Connection in progress" + fstr("...", {BLINK_SLOW}));
+
     m_fd = open(path, flags);
-    std::cout << "> Check connection: [fd:" << m_fd << "] " << std::flush;
+    logln(" Check connection: [fd:" + std::to_string(m_fd) + "] ");
     if(m_fd < 0)
-        throw m_id + "[ERROR] Could not open the serial port.";
-
-    std::cout << "OK\n" << std::flush;
+        throw log_error("Could not open the serial port.");
 
     struct termios tty;
     if(tcgetattr(m_fd, &tty) != 0)
-        throw m_id + "[ERROR] Could not get the serial port settings.";
+        throw log_error("Could not get the serial port settings.");
 
     tty.c_cflag &= ~PARENB;  // Clear parity bit, disabling parity (most common)
     tty.c_cflag &= ~CSTOPB;  // Clear stop field, only 1 stop bit (most common)

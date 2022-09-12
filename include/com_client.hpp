@@ -1,9 +1,9 @@
 #ifndef COM_CLIENT_HPP
 #define COM_CLIENT_HPP
 #include <iostream>
+#include <math.h>
 #include <mutex>
 #include <stdexcept>
-#include <math.h>
 
 #ifdef WIN32 //////////// IF WINDOWS OS //////////
 #include <winsock2.h>
@@ -23,6 +23,8 @@
 #error not defined for this platform
 #endif
 
+#include <strANSIseq.hpp>
+
 #define CRLF "\r\n"
 
 namespace Communication
@@ -37,7 +39,7 @@ namespace Communication
  * @author Alexis Devillard
  * @date 2022
  */
-class Client
+class Client : virtual public ESC::CLI
 {
 #if defined(linux)
 #define INVALID_SOCKET -1
@@ -58,7 +60,7 @@ class Client
         UDP
     };
 
-    Client(bool verbose = false);
+    Client(int verbose = -1);
     ~Client();
 
     void
@@ -137,16 +139,17 @@ class Client
     uint16_t
     CRC(uint8_t *buf, int n);
 
-    void get_stat(char c='d', int pkgSize=6)
+    void
+    get_stat(char c = 'd', int pkgSize = 6)
     {
         uint8_t buf[pkgSize];
         buf[0] = c;
         this->writeS(buf, pkgSize);
         float vals[4];
-        this->readS((uint8_t*)vals, 16);
+        this->readS((uint8_t *)vals, 16);
 
         std::cout << "mean: " << vals[0] << std::endl;
-        std::cout << "std: " << sqrt(vals[1]-vals[0]*vals[0]) << std::endl;
+        std::cout << "std: " << sqrt(vals[1] - vals[0] * vals[0]) << std::endl;
         std::cout << "n: " << vals[2] << std::endl;
         std::cout << "max: " << vals[3] << std::endl;
     }
@@ -214,9 +217,9 @@ class Client
     std::mutex *m_mutex;
     uint16_t m_crctable[256];
     uint16_t m_crc_accumulator;
-    SOCKADDR_IN m_addr_to = { 0 };
+    SOCKADDR_IN m_addr_to = {0};
     socklen_t m_size_addr;
-    std::string m_id; 
+    std::string m_id;
 };
 
 } // namespace Communication
