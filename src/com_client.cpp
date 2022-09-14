@@ -56,6 +56,13 @@ Client::open_connection(Mode mode, const char *address, int port, int flags)
     return m_fd;
 }
 
+  void
+Client::from_socket(SOCKET s)
+{
+    m_comm_mode = TCP;
+    m_fd = s;
+}
+
 int
 Client::close_connection()
 {

@@ -30,6 +30,17 @@
 namespace Communication
 {
 
+#if defined(linux)
+#define INVALID_SOCKET -1
+#define SOCKET_ERROR -1
+#define closesocket(s) close(s)
+typedef int SOCKET;
+typedef struct sockaddr_in SOCKADDR_IN;
+typedef struct sockaddr SOCKADDR;
+typedef struct in_addr IN_ADDR;
+typedef timeval TIMEVAL;
+#endif
+
 /**
  * @brief Communication client class
  *
@@ -41,17 +52,6 @@ namespace Communication
  */
 class Client : virtual public ESC::CLI
 {
-#if defined(linux)
-#define INVALID_SOCKET -1
-#define SOCKET_ERROR -1
-#define closesocket(s) close(s)
-    typedef int SOCKET;
-    typedef struct sockaddr_in SOCKADDR_IN;
-    typedef struct sockaddr SOCKADDR;
-    typedef struct in_addr IN_ADDR;
-    typedef timeval TIMEVAL;
-#endif
-
     public:
     enum Mode
     {
@@ -62,29 +62,6 @@ class Client : virtual public ESC::CLI
 
     Client(int verbose = -1);
     ~Client();
-
-    void
-    clean_start()
-    {
-        // ARDUINO SIDE
-        // Serial.write(0xaa);
-        // char c;
-        // while (c != 0xbb)
-        //   c = Serial.read();
-
-        uint8_t buff[1] = {'.'};
-        std::cout << "Connecting" << std::flush;
-        while(buff[0] != 0xaa) //empty the random char
-        {
-            if(this->readS(buff, 1) > 0)
-                std::cout << "." << std::flush;
-            usleep(1000);
-        }
-        buff[0] = 0xbb;
-        this->writeS(buff, 1);
-        std::cout << std::endl;
-        usleep(1000000);
-    };
 
     /**
      * @brief open_connection Open the connection the serial or network or interface
@@ -98,6 +75,9 @@ class Client : virtual public ESC::CLI
                     const char *address,
                     int port = -1,
                     int flags = O_RDWR | O_NOCTTY);
+
+    void
+    from_socket(SOCKET s);
     int
     close_connection();
 
@@ -213,13 +193,56 @@ class Client : virtual public ESC::CLI
     SOCKET m_fd;
     Mode m_comm_mode;
     bool m_is_connected = false;
-    bool m_verbose;
     std::mutex *m_mutex;
     uint16_t m_crctable[256];
     uint16_t m_crc_accumulator;
     SOCKADDR_IN m_addr_to = {0};
     socklen_t m_size_addr;
     std::string m_id;
+};
+
+class Server : virtual public ESC::CLI
+{
+    public:
+    Server(int verbose = -1) : ESC::CLI(verbose - 1, "Client")
+    {
+        SOCKADDR_IN sin = {0};
+        SOCKADDR_IN csin = {0};
+        SOCKET csock;
+        int sinsize = sizeof csin;
+        m_fd = socket(AF_INET, SOCK_STREAM, 0);
+        if(m_fd == INVALID_SOCKET)
+            throw log_error("socket() invalid");
+
+        sin.sin_addr.s_addr = htonl(INADDR_ANY);
+        sin.sin_port = htons(5001);
+        sin.sin_family = AF_INET;
+
+	int yes=1;
+	if (setsockopt(m_fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) == -1) {
+    perror("setsockopt");
+    exit(1);
+}
+	
+        if(bind(m_fd, (SOCKADDR *)&sin, sizeof sin) == SOCKET_ERROR)
+            throw log_error("bind()");
+        if(listen(m_fd, 5) == SOCKET_ERROR)
+            throw log_error("listen()");
+        csock = accept(m_fd, (SOCKADDR *)&csin, (socklen_t *)&sinsize);
+        if(csock == INVALID_SOCKET)
+            throw log_error("accept()");
+
+        m_client.from_socket(csock);
+    };
+  ~Server()
+  {
+    close(m_fd);
+    m_client.close_connection();
+    std::cout << "closing socket" << std::endl;
+  }
+public:
+    SOCKET m_fd;
+    Client m_client;
 };
 
 } // namespace Communication

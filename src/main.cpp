@@ -40,7 +40,7 @@ main(int argc, char **argv)
 	return 0;
     }
     
-    device.clean_start();
+    //    device.clean_start();
 
     try
     {
