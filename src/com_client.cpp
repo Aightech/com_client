@@ -13,7 +13,7 @@ namespace Communication
 
 using namespace ESC;
 
-Client::Client(int verbose) : ESC::CLI(verbose - 1, "Client")
+Client::Client(int verbose) : ESC::CLI(verbose, "Client")
 {
     logln("Init communication client.", true);
     mk_crctable();
@@ -66,9 +66,9 @@ Client::from_socket(SOCKET s)
 int
 Client::close_connection()
 {
-    logln("Closing connection ");
+  logln("Closing connection ",true);
     int n = closesocket(m_fd);
-    logln(fstr(" OK", {BOLD, FG_GREEN}), true);
+    logln(fstr(" OK", {BOLD, FG_GREEN}));
     return n;
 }
 

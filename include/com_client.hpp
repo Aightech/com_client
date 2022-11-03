@@ -60,7 +60,7 @@ class Client : virtual public ESC::CLI
         UDP
     };
 
-    Client(int verbose = -1);
+    Client(int verbose=-1);
     ~Client();
 
     /**
@@ -204,7 +204,7 @@ class Client : virtual public ESC::CLI
 class Server : virtual public ESC::CLI
 {
     public:
-    Server(int verbose = -1) : ESC::CLI(verbose - 1, "Client")
+  Server(int verbose = -1) : ESC::CLI(verbose - 1, "Client"), m_client(verbose)
     {
         SOCKADDR_IN sin = {0};
         SOCKADDR_IN csin = {0};
