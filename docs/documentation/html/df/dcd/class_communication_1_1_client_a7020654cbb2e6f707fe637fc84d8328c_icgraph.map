@@ -1,0 +1,9 @@
+<map id="Communication::Client::CRC" name="Communication::Client::CRC">
+<area shape="rect" id="node1" title="CRC Compute and return the CRC over the n first bytes of buf." alt="" coords="443,97,649,124"/>
+<area shape="rect" id="node2" href="$df/dcd/class_communication_1_1_client.html#a73fec58648938364cd65d690f50bd7ec" title="readS read the com inmterface." alt="" coords="224,57,395,98"/>
+<area shape="rect" id="node7" href="$df/dcd/class_communication_1_1_client.html#a32bd631bcb3b0a3476b146a0cc49332d" title="writeS write the com interface." alt="" coords="224,122,395,163"/>
+<area shape="rect" id="node3" href="$d7/d60/class_communication_1_1_h_t_t_p__client.html#a6c2e964c4510d91b79ff9303b672582e" title=" " alt="" coords="7,122,174,163"/>
+<area shape="rect" id="node4" href="$df/dcd/class_communication_1_1_client.html#a2508e02531cf7e8dd258677b7b1490e9" title=" " alt="" coords="5,187,176,229"/>
+<area shape="rect" id="node5" href="$de/dfb/src_2main_8cpp.html#a3c04138a5bfe5d72780bb7e82a18e627" title=" " alt="" coords="63,5,118,32"/>
+<area shape="rect" id="node6" href="$d7/d60/class_communication_1_1_h_t_t_p__client.html#a241e78ccad7bcbc7597cb2dde7d7e402" title=" " alt="" coords="7,57,174,98"/>
+</map>
