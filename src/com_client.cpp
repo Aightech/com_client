@@ -72,10 +72,9 @@ Client::close_connection()
 int
 Client::setup_TCP_socket(const char *address, int port, int timeout)
 {
-    SOCKADDR_IN sin = {0};
-    struct hostent *hostinfo;
     TIMEVAL tv = {.tv_sec = timeout, .tv_usec = 0};
     int res;
+    m_server_port = port;
     std::string id =
         "[" + std::string(address) + ":" + std::to_string(port) + "]";
 
@@ -83,13 +82,13 @@ Client::setup_TCP_socket(const char *address, int port, int timeout)
     if(m_fd == INVALID_SOCKET)
         throw std::string("socket() invalid");
 
-    hostinfo = gethostbyname(address);
-    if(hostinfo == NULL)
+    m_hostinfo = gethostbyname(address);
+    if(m_hostinfo == NULL)
         throw std::string("Unknown host") + address;
 
-    sin.sin_addr = *(IN_ADDR *)hostinfo->h_addr;
-    sin.sin_port = htons(port);
-    sin.sin_family = AF_INET;
+    m_addr_to.sin_addr = *(IN_ADDR *)m_hostinfo->h_addr;
+    m_addr_to.sin_port = htons(m_server_port);
+    m_addr_to.sin_family = AF_INET;
 
     LOG("%s\tConnection to %s in progress%s (timeout=%ds)\n",
         fstr("[TCP SOCKET]", {BOLD, FG_CYAN}).c_str(), id.c_str(),
@@ -97,7 +96,7 @@ Client::setup_TCP_socket(const char *address, int port, int timeout)
 
     if(timeout != -1)
         this->SetSocketBlockingEnabled(false); //set socket non-blocking
-    res = connect(m_fd, (SOCKADDR *)&sin, sizeof(SOCKADDR)); //try to connect
+    res = connect(m_fd, (SOCKADDR *)&m_addr_to, sizeof(SOCKADDR)); //try to connect
     if(timeout != -1)
         this->SetSocketBlockingEnabled(true); //set socket blocking
 
@@ -139,7 +138,7 @@ Client::setup_TCP_socket(const char *address, int port, int timeout)
 int
 Client::setup_UDP_socket(const char *address, int port, int timeout)
 {
-    struct hostent *hostinfo;
+    m_server_port = port;
     std::string id =
         "[" + std::string(address) + ":" + std::to_string(port) + "]";
 
@@ -147,12 +146,12 @@ Client::setup_UDP_socket(const char *address, int port, int timeout)
     if(m_fd == INVALID_SOCKET)
         throw std::string("socket() invalid");
 
-    hostinfo = gethostbyname(address);
-    if(hostinfo == NULL)
+    m_hostinfo = gethostbyname(address);
+    if(m_hostinfo == NULL)
         throw std::string("Unknown host") + address;
 
-    m_addr_to.sin_addr = *(IN_ADDR *)hostinfo->h_addr;
-    m_addr_to.sin_port = htons(port);
+    m_addr_to.sin_addr = *(IN_ADDR *)m_hostinfo->h_addr;
+    m_addr_to.sin_port = htons(m_server_port);
     m_addr_to.sin_family = AF_INET;
 
     m_size_addr = sizeof(m_addr_to);
@@ -229,10 +228,13 @@ Client::readS(uint8_t *buffer, size_t size, bool has_crc)
         n = recvfrom(m_fd, buffer, size, MSG_WAITALL, (SOCKADDR *)&m_addr_to, &m_size_addr);
     else if(m_comm_mode == SERIAL)
         n = read(m_fd, buffer, size);
-    std::cout << ">  " << n  << " " << MSG_WAITALL<< std::endl;
+        std::cout << "> ";
+        for(int i = 0; i < n; i++)
+            std::cout << std::hex  << (int)buffer[i] << " ";
+            std::cout << std::dec << std::endl;c
     if(has_crc &&
        this->CRC(buffer, size - 2) != *(uint16_t *)(buffer + size - 2))
-        return -1; //crc error
+        return -2; //crc error
     return n;
 }
 
@@ -248,6 +250,12 @@ Client::writeS(const void *buffer, size_t size, bool add_crc)
         n = sendto(m_fd, buffer, size + 2 * add_crc, 0, (SOCKADDR *)&m_addr_to, m_size_addr);
     else if(m_comm_mode == SERIAL)
         n = write(m_fd, buffer, size + 2 * add_crc);
+        std::cout << "> ";
+        for(int i = 0; i < n; i++)
+            std::cout << " " << (int)((uint8_t *)buffer)[i];
+        std::cout << std::endl;
+    //std::cout << ">  " << n  << " " << (int)(((uint8_t*)buffer)[0]) << " " << (int)(((uint8_t*)buffer)[1]) << " " << (int)(((uint8_t*)buffer)[2]) << std::endl;
+
     return n;
 }
 

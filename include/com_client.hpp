@@ -129,6 +129,29 @@ class Client
     };
 
     /**
+     * @brief Test the connection and if closed reconnect.
+     * 
+     */
+    void ensure_connection()
+    {
+        // //check for error
+        // int opt; // check for errors in socket layer
+        // socklen_t len = sizeof(opt);
+        // if(getsockopt(m_fd, SOL_SOCKET, SO_ERROR, &opt, &len) < 0)
+        //     throw std::string(" Error retrieving socket options");
+        // if(opt) // there was an error
+        //     throw std::string(std::strerror(opt));
+        
+        // //if disconnected close then reconnect
+        // if(m_is_connected ==false)
+        // {
+        //     close_connection();
+        //     connect(m_fd, (SOCKADDR *)&m_addr_to, sizeof(SOCKADDR)); //try to connect
+        // }
+
+    };
+
+    /**
      * @brief CRC Compute and return the CRC over the n first bytes of buf
      * @param buf path of the dir to look inside
      * @param n reference to the vector of string that will be filled with the directories that are in the path.
@@ -201,6 +224,8 @@ class Client
     uint16_t m_crc_accumulator;
     SOCKADDR_IN m_addr_to = { 0 };
     socklen_t m_size_addr;
+    struct hostent *m_hostinfo;
+    int m_server_port;
 };
 
 } // namespace Communication
