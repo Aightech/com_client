@@ -56,7 +56,7 @@ Client::open_connection(Mode mode, const char *address, int port, int flags)
     return m_fd;
 }
 
-  void
+void
 Client::from_socket(SOCKET s)
 {
     m_comm_mode = TCP;
@@ -66,7 +66,7 @@ Client::from_socket(SOCKET s)
 int
 Client::close_connection()
 {
-  logln("Closing connection ",true);
+    logln("Closing connection ", true);
     int n = closesocket(m_fd);
     logln(fstr(" OK", {BOLD, FG_GREEN}));
     return n;
@@ -95,7 +95,8 @@ Client::setup_TCP_socket(const char *address, int port, int timeout)
     sin.sin_family = AF_INET;
 
     logln("Connection in progress" + fstr("...", {BLINK_SLOW}) +
-          " (timeout=" + std::to_string(timeout) + "s)", true);
+              " (timeout=" + std::to_string(timeout) + "s)",
+          true);
 
     if(timeout != -1)
         this->SetSocketBlockingEnabled(false); //set socket non-blocking
@@ -133,9 +134,9 @@ Client::setup_TCP_socket(const char *address, int port, int timeout)
         m_is_connected = true;
     }
     else
-      {
-	throw log_error("Connection error");
-      }
+    {
+        throw log_error("Connection error");
+    }
 
     return 1;
 }
@@ -169,13 +170,23 @@ Client::setup_UDP_socket(const char *address, int port, int timeout)
 int
 Client::setup_serial(const char *path, int flags)
 {
+  std::string o_mode = "";
+  std::string mode; 
+    if((flags&O_RDWR)==O_RDWR)
+      mode = "rw";
+    else if((flags&O_RDONLY)==O_RDONLY)
+      mode = "ro";
+    else if((flags&O_WRONLY)==O_WRONLY)
+      mode = "wo";
+    else
+      mode = "?";
     cli_id() += ((cli_id() == "") ? "" : " - ") +
-                fstr_link(std::string(path) + ":" + std::to_string(flags));
+      fstr_link(std::string(path) + ":" + mode);
 
     logln("Connection in progress" + fstr("...", {BLINK_SLOW}));
 
     m_fd = open(path, flags);
-    logln(" Check connection: [fd:" + std::to_string(m_fd) + "] ");
+    logln("Check connection: [fd:" + std::to_string(m_fd) + "] ");
     if(m_fd < 0)
         throw log_error("Could not open the serial port.");
 
@@ -206,14 +217,52 @@ Client::setup_serial(const char *path, int flags)
     tty.c_cc[VTIME] = 40; // Wait for up to 4s, ret when any data is received.
     tty.c_cc[VMIN] = 0;
 
-    // Set in/out baud rate to be 9600
-    cfsetispeed(&tty, B500000);
-    cfsetospeed(&tty, B500000);
+    // Set in/out baud rate
+    int baud = 500000;
+    int speed;
+    switch(baud)
+    {
+    case 9600:
+        speed = B9600;
+        break;
+    case 19200:
+        speed = B19200;
+        break;
+    case 38400:
+        speed = B38400;
+        break;
+    case 57600:
+        speed = B57600;
+        break;
+    case 115200:
+        speed = B115200;
+        break;
+    case 230400:
+        speed = B230400;
+        break;
+    case 460800:
+        speed = B460800;
+        break;
+    case 500000:
+        speed = B500000;
+        break;
+    case 921600:
+        speed = B921600;
+        break;
+    case 1000000:
+        speed = B1000000;
+        break;
+    default:
+        throw log_error("Unsupported baud rate");
+    }
+
+    cfsetispeed(&tty, speed);
+    cfsetospeed(&tty, speed);
 
     // Save tty settings, also checking for error
     if(tcsetattr(m_fd, TCSANOW, &tty) != 0)
         throw m_id + "[ERROR] Could not set the serial port settings.";
-    std::cout << "> Serial port settings saved.\n" << std::flush;
+    logln("Serial port settings saved (" + std::to_string(baud) + " baud).");
     return m_fd;
 }
 
