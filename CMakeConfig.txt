@@ -1,5 +1,5 @@
 set(EXEC_NAME com_client)
-set(PROJECT_VERSION 2.13)
+set(PROJECT_VERSION 2.16)
 
 ###### Special libraries ######
 set(EXTRA_LIBS "")
