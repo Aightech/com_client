@@ -7,22 +7,15 @@
 #include <cerrno>
 #include <clocale>
 #include <cstring>
-#include <strANSIseq.hpp>
-
-#define LOG(...)             \
-    if(m_verbose)            \
-    {                        \
-        printf(__VA_ARGS__); \
-        fflush(stdout);      \
-    }
 
 namespace Communication
 {
 
 using namespace ESC;
 
-Client::Client(bool verbose) : m_verbose(true)
+Client::Client(int verbose) : ESC::CLI(verbose, "Client")
 {
+    logln("Init communication client.", true);
     mk_crctable();
     m_mutex = new std::mutex();
 #ifdef WIN32
@@ -53,50 +46,60 @@ Client::open_connection(Mode mode, const char *address, int port, int flags)
         this->setup_serial(address, flags);
     else if(m_comm_mode == TCP)
         this->setup_TCP_socket(address, port,
-                           ((O_RDWR | O_NOCTTY) == flags) ? -1 : flags);
+                               ((O_RDWR | O_NOCTTY) == flags) ? -1 : flags);
     else if(m_comm_mode == UDP)
         this->setup_UDP_socket(address, port,
-                           ((O_RDWR | O_NOCTTY) == flags) ? -1 : flags);
+                               ((O_RDWR | O_NOCTTY) == flags) ? -1 : flags);
 
     usleep(100000);
 
     return m_fd;
 }
 
+  void
+Client::from_socket(SOCKET s)
+{
+    m_comm_mode = TCP;
+    m_fd = s;
+}
+
 int
 Client::close_connection()
 {
-    return closesocket(m_fd);
+  logln("Closing connection ",true);
+    int n = closesocket(m_fd);
+    logln(fstr(" OK", {BOLD, FG_GREEN}));
+    return n;
 }
 
 int
 Client::setup_TCP_socket(const char *address, int port, int timeout)
 {
+    SOCKADDR_IN sin = {0};
+    struct hostent *hostinfo;
     TIMEVAL tv = {.tv_sec = timeout, .tv_usec = 0};
     int res;
-    m_server_port = port;
-    std::string id =
-        "[" + std::string(address) + ":" + std::to_string(port) + "]";
+    cli_id() += ((cli_id() == "") ? "" : " - ") +
+                fstr_link(std::string(address) + ":" + std::to_string(port));
 
     m_fd = socket(AF_INET, SOCK_STREAM, 0);
     if(m_fd == INVALID_SOCKET)
-        throw std::string("socket() invalid");
+        throw log_error("socket() invalid");
 
-    m_hostinfo = gethostbyname(address);
-    if(m_hostinfo == NULL)
-        throw std::string("Unknown host") + address;
+    hostinfo = gethostbyname(address);
+    if(hostinfo == NULL)
+        throw log_error(std::string("Unknown host") + address);
 
-    m_addr_to.sin_addr = *(IN_ADDR *)m_hostinfo->h_addr;
-    m_addr_to.sin_port = htons(m_server_port);
-    m_addr_to.sin_family = AF_INET;
+    sin.sin_addr = *(IN_ADDR *)hostinfo->h_addr;
+    sin.sin_port = htons(port);
+    sin.sin_family = AF_INET;
 
-    LOG("%s\tConnection to %s in progress%s (timeout=%ds)\n",
-        fstr("[TCP SOCKET]", {BOLD, FG_CYAN}).c_str(), id.c_str(),
-        fstr("...", {BLINK_SLOW}).c_str(), timeout);
+    logln("Connection in progress" + fstr("...", {BLINK_SLOW}) +
+          " (timeout=" + std::to_string(timeout) + "s)", true);
 
     if(timeout != -1)
         this->SetSocketBlockingEnabled(false); //set socket non-blocking
-    res = connect(m_fd, (SOCKADDR *)&m_addr_to, sizeof(SOCKADDR)); //try to connect
+    res = connect(m_fd, (SOCKADDR *)&sin, sizeof(SOCKADDR)); //try to connect
     if(timeout != -1)
         this->SetSocketBlockingEnabled(true); //set socket blocking
 
@@ -111,12 +114,11 @@ Client::setup_TCP_socket(const char *address, int port, int timeout)
                      NULL,      //exepting set of fd to watch
                      &tv);      //timeout before stop watching
         if(res < 1)
-            LOG("\t\tCould not connect to %s\n",
-                fstr(id, {BOLD, FG_RED}).c_str());
+            logln("Could not connect to " + fstr(m_id, {BOLD, FG_RED}));
         if(res == -1)
-            throw id + std::string(" Error with select()");
+            throw log_error(" Error with select()");
         else if(res == 0)
-            throw id + std::string(" Connection timed out");
+            throw log_error(" Connection timed out");
         res = 0;
     }
     if(res == 0)
@@ -124,41 +126,42 @@ Client::setup_TCP_socket(const char *address, int port, int timeout)
         int opt; // check for errors in socket layer
         socklen_t len = sizeof(opt);
         if(getsockopt(m_fd, SOL_SOCKET, SO_ERROR, &opt, &len) < 0)
-            throw id + std::string(" Error retrieving socket options");
+            throw log_error(" Error retrieving socket options");
         if(opt) // there was an error
-            throw id + " " + std::string(std::strerror(opt));
-        LOG("\t\tConnected to %s\n", fstr(id, {BOLD, FG_GREEN}).c_str());
+            throw log_error(std::strerror(opt));
+        logln(fstr("connected", {BOLD, FG_GREEN}));
         m_is_connected = true;
     }
+    else
+      {
+	throw log_error("Connection error");
+      }
 
     return 1;
 }
 
-
 int
 Client::setup_UDP_socket(const char *address, int port, int timeout)
 {
-    m_server_port = port;
-    std::string id =
-        "[" + std::string(address) + ":" + std::to_string(port) + "]";
+    struct hostent *hostinfo;
+    cli_id() += ((cli_id() == "") ? "" : " - ") +
+                fstr_link(std::string(address) + ":" + std::to_string(port));
 
     m_fd = socket(AF_INET, SOCK_DGRAM, 0);
     if(m_fd == INVALID_SOCKET)
-        throw std::string("socket() invalid");
+        throw log_error("socket() invalid");
 
-    m_hostinfo = gethostbyname(address);
-    if(m_hostinfo == NULL)
-        throw std::string("Unknown host") + address;
+    hostinfo = gethostbyname(address);
+    if(hostinfo == NULL)
+        throw log_error(std::string("Unknown host") + address);
 
-    m_addr_to.sin_addr = *(IN_ADDR *)m_hostinfo->h_addr;
-    m_addr_to.sin_port = htons(m_server_port);
+    m_addr_to.sin_addr = *(IN_ADDR *)hostinfo->h_addr;
+    m_addr_to.sin_port = htons(port);
     m_addr_to.sin_family = AF_INET;
 
     m_size_addr = sizeof(m_addr_to);
 
-    LOG("%s\tUDP socket to %s is setup. \n",
-        fstr("[UDP SOCKET]", {BOLD, FG_CYAN}).c_str(), id.c_str());
-
+    logln("UDP socket is setup. ", true);
 
     return 1;
 }
@@ -166,22 +169,19 @@ Client::setup_UDP_socket(const char *address, int port, int timeout)
 int
 Client::setup_serial(const char *path, int flags)
 {
-    std::string id =
-        "[" + std::string(path) + ":" + std::to_string(flags) + "]";
+    cli_id() += ((cli_id() == "") ? "" : " - ") +
+                fstr_link(std::string(path) + ":" + std::to_string(flags));
 
-    LOG("\x1b[34m[SERIAL]\x1b[0m\tConnection to %s in "
-        "progress\x1b[5m...\x1b[0m\n",
-        id.c_str());
+    logln("Connection in progress" + fstr("...", {BLINK_SLOW}));
+
     m_fd = open(path, flags);
-    std::cout << "> Check connection: [fd:" << m_fd << "] "<< std::flush;
+    logln(" Check connection: [fd:" + std::to_string(m_fd) + "] ");
     if(m_fd < 0)
-        throw id + "[ERROR] Could not open the serial port.";
-
-    std::cout << "OK\n" << std::flush;
+        throw log_error("Could not open the serial port.");
 
     struct termios tty;
     if(tcgetattr(m_fd, &tty) != 0)
-        throw id + "[ERROR] Could not get the serial port settings.";
+        throw log_error("Could not get the serial port settings.");
 
     tty.c_cflag &= ~PARENB;  // Clear parity bit, disabling parity (most common)
     tty.c_cflag &= ~CSTOPB;  // Clear stop field, only 1 stop bit (most common)
@@ -212,7 +212,7 @@ Client::setup_serial(const char *path, int flags)
 
     // Save tty settings, also checking for error
     if(tcsetattr(m_fd, TCSANOW, &tty) != 0)
-        throw id + "[ERROR] Could not set the serial port settings.";
+        throw m_id + "[ERROR] Could not set the serial port settings.";
     std::cout << "> Serial port settings saved.\n" << std::flush;
     return m_fd;
 }
@@ -225,16 +225,14 @@ Client::readS(uint8_t *buffer, size_t size, bool has_crc)
     if(m_comm_mode == TCP)
         n = recv(m_fd, buffer, size, 0);
     else if(m_comm_mode == UDP)
-        n = recvfrom(m_fd, buffer, size, MSG_WAITALL, (SOCKADDR *)&m_addr_to, &m_size_addr);
+        n = recvfrom(m_fd, buffer, size, MSG_WAITALL, (SOCKADDR *)&m_addr_to,
+                     &m_size_addr);
     else if(m_comm_mode == SERIAL)
         n = read(m_fd, buffer, size);
-        std::cout << "> ";
-        for(int i = 0; i < n; i++)
-            std::cout << std::hex  << (int)buffer[i] << " ";
-            std::cout << std::dec << std::endl;c
+    //std::cout << ">  " << n  << " " << MSG_WAITALL<< std::endl;
     if(has_crc &&
        this->CRC(buffer, size - 2) != *(uint16_t *)(buffer + size - 2))
-        return -2; //crc error
+        return -1; //crc error
     return n;
 }
 
@@ -243,19 +241,15 @@ Client::writeS(const void *buffer, size_t size, bool add_crc)
 {
     std::lock_guard<std::mutex> lck(*m_mutex); //ensure only one thread using it
     int n = 0;
-    *(uint16_t *)((uint8_t *)buffer + size) = CRC((uint8_t*)buffer, size); // add crc
+    *(uint16_t *)((uint8_t *)buffer + size) =
+        CRC((uint8_t *)buffer, size); // add crc
     if(m_comm_mode == TCP)
         n = send(m_fd, buffer, size + 2 * add_crc, 0);
     if(m_comm_mode == UDP)
-        n = sendto(m_fd, buffer, size + 2 * add_crc, 0, (SOCKADDR *)&m_addr_to, m_size_addr);
+        n = sendto(m_fd, buffer, size + 2 * add_crc, 0, (SOCKADDR *)&m_addr_to,
+                   m_size_addr);
     else if(m_comm_mode == SERIAL)
         n = write(m_fd, buffer, size + 2 * add_crc);
-        std::cout << "> ";
-        for(int i = 0; i < n; i++)
-            std::cout << " " << (int)((uint8_t *)buffer)[i];
-        std::cout << std::endl;
-    //std::cout << ">  " << n  << " " << (int)(((uint8_t*)buffer)[0]) << " " << (int)(((uint8_t*)buffer)[1]) << " " << (int)(((uint8_t*)buffer)[2]) << std::endl;
-
     return n;
 }
 
