@@ -267,7 +267,7 @@ Client::setup_serial(const char *path, int flags)
 }
 
 int
-Client::readS(uint8_t *buffer, size_t size, bool has_crc)
+Client::readS(uint8_t *buffer, size_t size, bool has_crc, bool read_until)
 {
     std::lock_guard<std::mutex> lck(*m_mutex); //ensure only one thread using it
     int n = 0;
@@ -278,10 +278,15 @@ Client::readS(uint8_t *buffer, size_t size, bool has_crc)
                      &m_size_addr);
     else if(m_comm_mode == SERIAL)
         n = read(m_fd, buffer, size);
-    //std::cout << ">  " << n  << " " << MSG_WAITALL<< std::endl;
+    if(n!=size && read_until)
+        while(n!=size) n+=read(m_fd, buffer+n, size-n);
+
     if(has_crc &&
        this->CRC(buffer, size - 2) != *(uint16_t *)(buffer + size - 2))
-        return -1; //crc error
+    {
+        logln("readS: CRC error", true);
+        return -2; //crc error
+    }
     return n;
 }
 
