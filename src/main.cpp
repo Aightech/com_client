@@ -55,12 +55,19 @@ main(int argc, char **argv)
         {
             uint8_t buff[24] = {'1'};
             int a = device.writeS(buff, 1);
+	    std::cout << a << std::flush;
             int tot = 32;
-            int n = device.readS(buff, tot);
-            while(n < tot) n += device.readS(buff + n, tot - n);
+	    
+	    std::cout << " ... ";
+            int n = device.readS(buff, tot, false);
+	    
+	    std::cout << n << std::endl;
             for(uint8_t i = 0; i < 8; i++)
-	      sample[i] = ((int32_t*)(buff))[i];
-
+	      {
+		sample[i] = ((int32_t*)(buff))[i];
+		std::cout << sample[i] << " ";
+	      }
+	    std::cout << std::endl; 
             outlet_sample.push_sample(sample);
         }
     }

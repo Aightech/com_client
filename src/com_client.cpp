@@ -220,7 +220,7 @@ Client::setup_serial(const char *path, int flags)
     tty.c_cc[VMIN] = 0;
 
     // Set in/out baud rate
-    int baud = 500000;
+    int baud = 9600;//500000;
     int speed;
     switch(baud)
     {
