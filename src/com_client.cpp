@@ -8,7 +8,6 @@
 #include <clocale>
 #include <cstring>
 
-
 #include <sys/ioctl.h>
 
 namespace Communication
@@ -173,23 +172,22 @@ Client::setup_UDP_socket(const char *address, int port, int timeout)
 int
 Client::setup_serial(const char *path, int flags)
 {
-  std::string o_mode = "";
-  std::string mode; 
-    if((flags&O_RDWR)==O_RDWR)
-      mode = "rw";
-    else if((flags&O_RDONLY)==O_RDONLY)
-      mode = "ro";
-    else if((flags&O_WRONLY)==O_WRONLY)
-      mode = "wo";
+    std::string o_mode = "";
+    std::string mode;
+    if((flags & O_RDWR) == O_RDWR)
+        mode = "rw";
+    else if((flags & O_RDONLY) == O_RDONLY)
+        mode = "ro";
+    else if((flags & O_WRONLY) == O_WRONLY)
+        mode = "wo";
     else
-      mode = "?";
+        mode = "?";
     cli_id() += ((cli_id() == "") ? "" : " - ") +
-      fstr_link(std::string(path) + ":" + mode);
+                fstr_link(std::string(path) + ":" + mode);
 
     logln("Connection in progress" + fstr("...", {BLINK_SLOW}));
 
-    
-    m_fd = open(path,  flags);
+    m_fd = open(path, flags);
     logln("Check connection: [fd:" + std::to_string(m_fd) + "] ");
     if(m_fd < 0)
         throw log_error("Could not open the serial port.");
@@ -198,7 +196,6 @@ Client::setup_serial(const char *path, int flags)
     if(tcgetattr(m_fd, &tty) != 0)
         throw log_error("Could not get the serial port settings.");
 
-    
     tty.c_cflag &= ~PARENB;  // Clear parity bit, disabling parity (most common)
     tty.c_cflag &= ~CSTOPB;  // Clear stop field, only 1 stop bit (most common)
     tty.c_cflag &= ~CSIZE;   // Clear all bits that set the data size
@@ -219,11 +216,11 @@ Client::setup_serial(const char *path, int flags)
     // tty.c_oflag &= ~OXTABS; // Prevent conversion of tabs to spaces (NOT PRESENT ON LINUX)
     // tty.c_oflag &= ~ONOEOT; // Prevent removal of C-d chars (0x004) in output (NOT PRESENT ON LINUX)
 
-    tty.c_cc[VTIME] = 2; // Wait for up to 4s, ret when any data is received.
-    tty.c_cc[VMIN] = 100;
+    tty.c_cc[VTIME] = 40; // Wait for up to 4s, ret when any data is received.
+    tty.c_cc[VMIN] = 0;
 
     // Set in/out baud rate
-    int baud = 9600;//500000;
+    int baud = 500000;
     int speed;
     switch(baud)
     {
@@ -263,30 +260,28 @@ Client::setup_serial(const char *path, int flags)
 
     cfsetispeed(&tty, speed);
     cfsetospeed(&tty, speed);
-    
+
+    //tcflush(m_fd, TCIFLUSH);
+    // int n = TIOCM_DTR;
+    // ioctl(m_fd, TIOCMBIS, &n);
+    // usleep(2500);
+    // ioctl(m_fd, TIOCMBIC, &n);
+    // usleep(2500);
+
+    // n= TIOCM_RTS;
+    //    ioctl(m_fd, TIOCMBIS, &n);
+    //    usleep(1000);
+    //    ioctl(m_fd, TIOCMBIC, &n);
+
     // Save tty settings, also checking for error
     if(tcsetattr(m_fd, TCSANOW, &tty) != 0)
         throw m_id + "[ERROR] Could not set the serial port settings.";
-    //tcflush(m_fd, TCIFLUSH);
     logln("Serial port settings saved (" + std::to_string(baud) + " baud).");
-
-
-    // int n = TIOCM_DTR;
-  // ioctl(m_fd, TIOCMBIS, &n);
-  // usleep(2500);
-  // ioctl(m_fd, TIOCMBIC, &n);
-  // usleep(2500);
-
-  // n= TIOCM_RTS;
-  //    ioctl(m_fd, TIOCMBIS, &n);
-  //    usleep(1000);
-  //    ioctl(m_fd, TIOCMBIC, &n);
-    
     return m_fd;
 }
 
 int
-Client::readS(uint8_t *buffer, size_t size, bool has_crc)
+Client::readS(uint8_t *buffer, size_t size, bool has_crc, bool read_until)
 {
     std::lock_guard<std::mutex> lck(*m_mutex); //ensure only one thread using it
     int n = 0;
@@ -297,11 +292,15 @@ Client::readS(uint8_t *buffer, size_t size, bool has_crc)
                      &m_size_addr);
     else if(m_comm_mode == SERIAL)
         n = read(m_fd, buffer, size);
-      
-    //std::cout << ">  " << n  << " " << MSG_WAITALL<< std::endl;
+    if(n != size && read_until)
+        while(n != size) n += read(m_fd, buffer + n, size - n);
+
     if(has_crc &&
        this->CRC(buffer, size - 2) != *(uint16_t *)(buffer + size - 2))
-        return -1; //crc error
+    {
+        logln("readS: CRC error", true);
+        return -2; //crc error
+    }
     return n;
 }
 

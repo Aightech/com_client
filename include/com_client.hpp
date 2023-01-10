@@ -86,10 +86,11 @@ class Client : virtual public ESC::CLI
      * @param buffer Data store in buffer.
      * @param size Nb of bytes to read.
      * @param has_crc If true the two last bytes are checked as a CRC16.
+     * @param read until loop until "size" bytes have been read.
      * @return number of bytes read.
      */
     int
-    readS(uint8_t *buffer, size_t size, bool has_crc = false);
+    readS(uint8_t *buffer, size_t size, bool has_crc = false, bool read_until=true);
 
     /**
      * @brief writeS write the com interface.
