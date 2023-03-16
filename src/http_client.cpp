@@ -38,7 +38,13 @@ HTTP_client::get(const char *page, int n)
     char buffer[n];
     sprintf(m_header, m_header_get, page, m_ip.c_str());
     m_client.writeS(m_header, strlen(m_header));
-    m_client.readS((uint8_t *)buffer, n);
+    bool read_until=true;
+    if(n==-1)
+      {
+	n=2048;
+	read_until=false;
+      }
+    m_client.readS((uint8_t *)buffer, n, false, read_until); //if n <0 then don't "read until"
 
     char *d = strstr(buffer, "\r\n\r\n");
     int size = strtol(d, NULL, 16);
@@ -62,12 +68,19 @@ HTTP_client::post(const char *page, const char *content, int n)
     if(m_content_length > 0)
         m_client.writeS(content, m_content_length);
 
+    //logln(std::string("HEADER ") + m_header);
     // if(m_content_length > 0)
-    //   logln("POST " + m_content);
-    // logln("@" + std::string(page));
+    //   logln(std::string("POST ") + content);
+    //  logln("@" + std::string(page));
+    bool read_until=true;
+    if(n==-1)
+      {
+	n=2048;
+	read_until=false;
+      }
     char buffer[n];
-    m_client.readS((uint8_t *)buffer, n);
-    //printf("Received %d bytes: %s\n", n, m_reply_buff);
+    m_client.readS((uint8_t *)buffer, n, false, read_until);//if n <0 then don't "read until"
+    //printf("Received %d bytes: %s\n", n, buffer);
 
     char *d = strstr(buffer, "\r\n\r\n");
     int size = strtol(d, NULL, 16);

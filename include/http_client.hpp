@@ -8,9 +8,12 @@
 namespace Communication
 {
 
+/**
+ * @brief HTTP client class
+ * @details This class is used to send HTTP requests to a server
+ */
 class HTTP_client : virtual public ESC::CLI
 {
-
     public:
     HTTP_client(int verbose = -1);
     ~HTTP_client();
@@ -18,11 +21,22 @@ class HTTP_client : virtual public ESC::CLI
     void
     open_connection(std::string ip, int port);
 
+    /**
+     * @brief send a get request to the server
+        * @param page the page to request
+        * @param n the number of bytes to read. If n is -1, read 2048 bytes max and don't read until 2048 bytes are read
+     */
     std::string
-    get(const char *page, int n=2048);
+    get(const char *page, int n = -1);
 
+    /**
+     * @brief send a post request to the server
+        * @param page the page to request
+        * @param content the content to send
+        * @param n the number of bytes to read. If n is -1, read 2048 bytes max and don't read until 2048 bytes are read
+     */
     std::string
-    post(const char *page, const char *content = NULL, int n=2048);
+    post(const char *page, const char *content = NULL, int n = -1);
 
     private:
     Communication::Client m_client;
