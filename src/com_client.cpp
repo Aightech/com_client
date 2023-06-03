@@ -210,6 +210,12 @@ Client::setup_serial(const char *path, int flags)
     tty.c_iflag &= ~(IXON | IXOFF | IXANY); // Turn off s/w flow ctrl
     tty.c_iflag &= ~(IGNBRK | BRKINT | PARMRK | ISTRIP | INLCR | IGNCR |
                      ICRNL); // Disable any special handling of received bytes
+    //tty.c_lflag &= ~IEXTEN; // Disable any special handling of received bytes
+    //add ECHOK
+    //tty.c_lflag &= ~ECHOK;
+    //tty.c_lflag &= ~ECHOKE;
+    //tty.c_lflag &= ~ECHOCTL;
+    
 
     tty.c_oflag &= ~OPOST; // Prevent spe. interp. of out bytes (newline chars)
     tty.c_oflag &= ~ONLCR; // Prevent conv of newline to car. ret/line feed
