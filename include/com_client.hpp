@@ -132,31 +132,16 @@ class Client : virtual public ESC::CLI
         std::cout << "max: " << vals[3] << std::endl;
     }
 
-    protected:
-    /**
-     * @brief crchware Generate the values for the CRC lookup table.
-     * @param data The short data to generate the CRC.
-     * @param genpoly The generator polynomial.
-     * @param accum The accumulator value.
-     * @return
-     */
-    uint16_t
-    crchware(uint16_t data, uint16_t genpoly, uint16_t accum);
-
+    private:
     /**
      * @brief mk_crctable Create a CRC lookup table to compute CRC16 fatser.
      * @param poly Represent the coeficients use for the polynome of the CRC
      */
     void
-    mk_crctable(uint16_t poly = 0x1021);
+    mk_crctable(uint16_t genpoly = 0x1021);
+    static uint16_t s_crctable[256];
 
-    /**
-     * @brief CRC_check Function use in CRC computation
-     * @param data The data to compute.
-     */
-    void
-    CRC_check(uint8_t data);
-
+    protected:
     /** Returns true on success, or false if there was an error */
     bool
     SetSocketBlockingEnabled(bool blocking);
@@ -164,8 +149,6 @@ class Client : virtual public ESC::CLI
     SOCKET m_fd;
     bool m_is_connected = false;
     std::mutex *m_mutex;
-    uint16_t m_crctable[256];
-    uint16_t m_crc_accumulator;
     SOCKADDR_IN m_addr_to = {0};
     socklen_t m_size_addr;
     std::string m_id;
@@ -219,7 +202,5 @@ class Client : virtual public ESC::CLI
 // };
 
 } // namespace Communication
-
-
 
 #endif //COM_CLIENT_HPP

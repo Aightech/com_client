@@ -15,10 +15,12 @@ namespace Communication
 
 using namespace ESC;
 
+
+
 Client::Client(int verbose) : ESC::CLI(verbose, "Client")
 {
     logln("Init communication client.", true);
-    mk_crctable();
+    this->mk_crctable(); //init crc table
     m_mutex = new std::mutex();
 #ifdef WIN32
     WSADATA wsa;
@@ -84,41 +86,38 @@ Client::SetSocketBlockingEnabled(bool blocking)
 #endif
 }
 
-void
-Client::mk_crctable(uint16_t poly)
-{
-    for(int i = 0; i < 256; i++) m_crctable[i] = crchware(i, poly, 0);
-}
-
-uint16_t
-Client::crchware(uint16_t data, uint16_t genpoly, uint16_t accum)
-{
-    static int i;
-    data <<= 8;
-    for(i = 8; i > 0; i--)
-    {
-        if((data ^ accum) & 0x8000)
-            accum = (accum << 1) ^ genpoly;
-        else
-            accum <<= 1;
-        data <<= 1;
-    }
-    return accum;
-}
-
-void
-Client::CRC_check(uint8_t data)
-{
-    m_crc_accumulator =
-        (m_crc_accumulator << 8) ^ m_crctable[(m_crc_accumulator >> 8) ^ data];
-};
-
 uint16_t
 Client::CRC(uint8_t *buf, int n)
 {
-    m_crc_accumulator = 0;
-    for(int i = 0; i < n; i++) CRC_check(buf[i]);
+    uint16_t m_crc_accumulator = 0;
+    for(int i = 0; i < n; i++)
+        m_crc_accumulator = (m_crc_accumulator << 8) ^
+                            s_crctable[(m_crc_accumulator >> 8) ^ buf[i]];
     return (m_crc_accumulator >> 8) | (m_crc_accumulator << 8);
+}
+
+uint16_t Client::s_crctable[256];
+void
+Client::mk_crctable(uint16_t genpoly)
+{
+    static bool once = [this, genpoly]()//init crc table only once
+    {
+        for(uint16_t d = 0; d < 256; d++)
+        {
+            uint16_t accum = 0;
+            d <<= 8;
+            for(int i = 8; i > 0; i--)
+            {
+                if((d ^ accum) & 0x8000)
+                    accum = (accum << 1) ^ genpoly;
+                else
+                    accum <<= 1;
+                d <<= 1;
+            }
+            s_crctable[d] = accum;
+        }
+        return true;
+    }();
 }
 
 } // namespace Communication
