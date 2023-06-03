@@ -40,12 +40,12 @@ Client::~Client(void)
 }
 
 int
-Client::open_connection(Mode mode, const char *address, int port, int flags)
+Client::open_connection(Mode mode, const char *address, int port, int flags, int baud)
 {
     m_comm_mode = mode;
 
     if(m_comm_mode == SERIAL)
-        this->setup_serial(address, flags);
+      this->setup_serial(address, flags, baud);
     else if(m_comm_mode == TCP)
         this->setup_TCP_socket(address, port,
                                ((O_RDWR | O_NOCTTY) == flags) ? -1 : flags);
@@ -170,7 +170,7 @@ Client::setup_UDP_socket(const char *address, int port, int timeout)
 }
 
 int
-Client::setup_serial(const char *path, int flags)
+Client::setup_serial(const char *path, int flags, int baud)
 {
     std::string o_mode = "";
     std::string mode;
@@ -226,7 +226,6 @@ Client::setup_serial(const char *path, int flags)
     tty.c_cc[VMIN] = 0;
 
     // Set in/out baud rate
-    int baud = 9600; //500000;
     int speed;
     switch(baud)
     {

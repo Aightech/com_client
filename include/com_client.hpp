@@ -74,7 +74,7 @@ class Client : virtual public ESC::CLI
     open_connection(Mode mode,
                     const char *address,
                     int port = -1,
-                    int flags = O_RDWR | O_NOCTTY);
+                    int flags = O_RDWR | O_NOCTTY, int baud = 9600);
 
     void
     from_socket(SOCKET s);
@@ -167,7 +167,7 @@ class Client : virtual public ESC::CLI
      * @return int return the file descriptor of the serial port.
      */
     int
-    setup_serial(const char *address, int flags);
+    setup_serial(const char *address, int flags, int baud);
 
     /**
      * @brief setup_socket Set up the socket object.
