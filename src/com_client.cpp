@@ -70,7 +70,7 @@ Client::close_connection()
 {
     logln("Closing connection ", true);
     int n = closesocket(m_fd);
-    logln(fstr(" OK", {BOLD, FG_GREEN}));
+    logln(fstr("OK", {BOLD, FG_GREEN}));
     return n;
 }
 
@@ -81,8 +81,8 @@ Client::setup_TCP_socket(const char *address, int port, int timeout)
     struct hostent *hostinfo;
     TIMEVAL tv = {.tv_sec = timeout, .tv_usec = 0};
     int res;
-    cli_id() += ((cli_id() == "") ? "" : " - ") +
-                fstr_link(std::string(address) + ":" + std::to_string(port));
+    set_cli_id(cli_id() + ((cli_id() == "") ? "" : " - ") +
+                fstr_link(std::string(address) + ":" + std::to_string(port)));
 
     m_fd = socket(AF_INET, SOCK_STREAM, 0);
     if(m_fd == INVALID_SOCKET)
@@ -226,7 +226,7 @@ Client::setup_serial(const char *path, int flags)
     tty.c_cc[VMIN] = 0;
 
     // Set in/out baud rate
-    int baud = 9600;//500000;
+    int baud = 9600; //500000;
     int speed;
     switch(baud)
     {
@@ -315,8 +315,9 @@ Client::writeS(const void *buffer, size_t size, bool add_crc)
 {
     std::lock_guard<std::mutex> lck(*m_mutex); //ensure only one thread using it
     int n = 0;
-    *(uint16_t *)((uint8_t *)buffer + size) =
-        CRC((uint8_t *)buffer, size); // add crc
+    if(add_crc)
+        *(uint16_t *)((uint8_t *)buffer + size) =
+            CRC((uint8_t *)buffer, size); // add crc
     if(m_comm_mode == TCP)
         n = send(m_fd, buffer, size + 2 * add_crc, 0);
     if(m_comm_mode == UDP)
