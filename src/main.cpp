@@ -6,34 +6,53 @@
 
 #include <stdio.h>
 
-#include "com_client.hpp"
+#include "http_client.hpp"
+#include "serial_client.hpp"
+#include "tcp_client.hpp"
+#include "udp_client.hpp"
 #include <lsl_cpp.h>
 
 int
 main(int argc, char **argv)
 {
-    if(argc < 3)
+    if(argc < 4)
     {
-        std::cout << "Usage: " << argv[0] << " path/address [port]"
-                  << std::endl;
+        std::cout << ESC::fstr("Usage:\t", {ESC::BOLD}) << argv[0] << " mode path/ip port/baud"
+                  << std::endl << std::endl
+                << ESC::fstr("Example:\n\t", {ESC::BOLD}) << argv[0] << " serial /dev/ttyUSB0 115200" << std::endl
+                << "\t" << argv[0] << " tcp 192.168.0.1 8080"
+                    << std::endl << std::endl
+                    << ESC::fstr("Description:", {ESC::BOLD}) << std::endl
+                  << "\t- mode: serial, tcp, udp, http" << std::endl
+                    << "\t- path/ip: path to serial port or ip address" << std::endl
+                    << "\t- port/baud: port number or baud rate" << std::endl;
         exit(0);
     }
-    std::string path = argv[1];
-    int port = atoi((argc < 2) ? "-1" : argv[2]);
+    //Mode can be "serial", "tcp", "udp", "http"
+    std::string mode = argv[1];
+    std::string path = argv[2];
+    int opt = atoi(argv[3]);
+    int flags = (mode == "serial") ? O_RDWR | O_NOCTTY : 1;
     std::cout << "Com Interface:" << std::endl;
-    Communication::Client device(true);
-
+    Communication::Client *device;
+    int verbose=1;
     try
     {
-        if(port == -1)
-        {
-            device.open_connection(Communication::Client::SERIAL, path.c_str());
-        }
+        if(mode == "serial")
+            device = new Communication::Serial(verbose);
+        else if(mode == "tcp")
+            device = new Communication::TCP(verbose);
+        else if(mode == "udp")
+            device = new Communication::UDP(verbose);
+        else if(mode == "http")
+            device = new Communication::HTTP(verbose);
         else
         {
-            device.open_connection(Communication::Client::TCP, path.c_str(),
-                                   port);
+            std::cout << "Mode not recognized" << std::endl;
+            exit(0);
         }
+
+        device->open_connection(path.c_str(), opt, flags);
     }
     catch(std::string msg)
     {
@@ -41,7 +60,6 @@ main(int argc, char **argv)
         return 0;
     }
 
-    //    device.clean_start();
 
     try
     {
@@ -54,20 +72,20 @@ main(int argc, char **argv)
         for(int t = 0;; t++)
         {
             uint8_t buff[24] = {'1'};
-            int a = device.writeS(buff, 1);
-	    std::cout << a << std::flush;
+            int a = device->writeS(buff, 1);
+            std::cout << a << std::flush;
             int tot = 32;
-	    
-	    std::cout << " ... ";
-            int n = device.readS(buff, tot, false);
-	    
-	    std::cout << n << std::endl;
+
+            std::cout << " ... ";
+            int n = device->readS(buff, tot, false);
+
+            std::cout << n << std::endl;
             for(uint8_t i = 0; i < 8; i++)
-	      {
-		sample[i] = ((int32_t*)(buff))[i];
-		std::cout << sample[i] << " ";
-	      }
-	    std::cout << std::endl; 
+            {
+                sample[i] = ((int32_t *)(buff))[i];
+                std::cout << sample[i] << " ";
+            }
+            std::cout << std::endl;
             outlet_sample.push_sample(sample);
         }
     }
@@ -76,7 +94,7 @@ main(int argc, char **argv)
         std::cerr << "[ERROR] Got an exception: " << e.what() << std::endl;
     }
     uint8_t b[1] = {'n'};
-    device.writeS(b, 1);
+    device->writeS(b, 1);
 
     return 0; // success
 }

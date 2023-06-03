@@ -1,7 +1,7 @@
 #ifndef __HTTP_CLIENT_HPP__
 #define __HTTP_CLIENT_HPP__
 
-#include "com_client.hpp"
+#include "tcp_client.hpp"
 
 #include <cstring>
 
@@ -12,14 +12,11 @@ namespace Communication
  * @brief HTTP client class
  * @details This class is used to send HTTP requests to a server
  */
-class HTTP_client : virtual public ESC::CLI
+class HTTP :  public TCP
 {
     public:
-    HTTP_client(int verbose = -1);
-    ~HTTP_client();
-
-    void
-    open_connection(std::string ip, int port);
+    HTTP(int verbose = -1);
+    ~HTTP(){};
 
     /**
      * @brief send a get request to the server
@@ -39,7 +36,6 @@ class HTTP_client : virtual public ESC::CLI
     post(const char *page, const char *content = NULL, int n = -1);
 
     private:
-    Communication::Client m_client;
     std::string m_ip;
     char m_header_post[1024];
     char m_header_post_with_data[1024];

@@ -53,31 +53,22 @@ typedef timeval TIMEVAL;
 class Client : virtual public ESC::CLI
 {
     public:
-    enum Mode
-    {
-        SERIAL,
-        TCP,
-        UDP
-    };
-
-    Client(int verbose=-1);
+    Client(int verbose = -1);
     ~Client();
 
     /**
      * @brief open_connection Open the connection the serial or network or interface
      * @param address Path or IP address
-     * @param port -1 to open a serial com, else the value of the port to listen/write
+     * @param opt -1 to open a serial com, else the value of the port to listen/write
      * @param flags Some flags
      * @return
      */
-    int
-    open_connection(Mode mode,
-                    const char *address,
-                    int port = -1,
-                    int flags = O_RDWR | O_NOCTTY, int baud = 9600);
+    virtual int
+    open_connection(const char *address, int opt, int flags) = 0;
 
     void
     from_socket(SOCKET s);
+
     int
     close_connection();
 
@@ -89,8 +80,11 @@ class Client : virtual public ESC::CLI
      * @param read until loop until "size" bytes have been read.
      * @return number of bytes read.
      */
-    int
-    readS(uint8_t *buffer, size_t size, bool has_crc = false, bool read_until=true);
+    virtual int
+    readS(uint8_t *buffer,
+          size_t size,
+          bool has_crc = false,
+          bool read_until = true) = 0;
 
     /**
      * @brief writeS write the com interface.
@@ -99,8 +93,8 @@ class Client : virtual public ESC::CLI
      * @param add_crc If true two more bytes are added to the buffer to store a CRC16. Be sure to have enough space in the buffer.
      * @return number of bytes written.
      */
-    int
-    writeS(const void *buffer, size_t size, bool add_crc = false);
+    virtual int
+    writeS(const void *buffer, size_t size, bool add_crc = false) = 0;
 
     /**
      * @brief Check if the connection is open.
@@ -111,6 +105,9 @@ class Client : virtual public ESC::CLI
     {
         return m_is_connected;
     };
+
+    bool
+    check_CRC(uint8_t *buffer, int size);
 
     /**
      * @brief CRC Compute and return the CRC over the n first bytes of buf
@@ -135,7 +132,7 @@ class Client : virtual public ESC::CLI
         std::cout << "max: " << vals[3] << std::endl;
     }
 
-    private:
+    protected:
     /**
      * @brief crchware Generate the values for the CRC lookup table.
      * @param data The short data to generate the CRC.
@@ -160,39 +157,11 @@ class Client : virtual public ESC::CLI
     void
     CRC_check(uint8_t data);
 
-    /**
-     * @brief setup_serial Set up the serial object.
-     * @param address path of the serial port.
-     * @param flags connection flags.
-     * @return int return the file descriptor of the serial port.
-     */
-    int
-    setup_serial(const char *address, int flags, int baud);
-
-    /**
-     * @brief setup_socket Set up the socket object.
-     * @param address IP address of the server.
-     * @param port Port of the server.
-     * @return int return the file descriptor of the socket.
-     */
-    int
-    setup_TCP_socket(const char *address, int port, int timeout = 2);
-
-    /**
-     * @brief setup_socket Set up the socket object.
-     * @param address IP address of the server.
-     * @param port Port of the server.
-     * @return int return the file descriptor of the socket.
-     */
-    int
-    setup_UDP_socket(const char *address, int port, int timeout = 2);
-
     /** Returns true on success, or false if there was an error */
     bool
     SetSocketBlockingEnabled(bool blocking);
 
     SOCKET m_fd;
-    Mode m_comm_mode;
     bool m_is_connected = false;
     std::mutex *m_mutex;
     uint16_t m_crctable[256];
@@ -202,50 +171,55 @@ class Client : virtual public ESC::CLI
     std::string m_id;
 };
 
-class Server : virtual public ESC::CLI
-{
-    public:
-  Server(int verbose = -1) : ESC::CLI(verbose - 1, "Client"), m_client(verbose)
-    {
-        SOCKADDR_IN sin = {0};
-        SOCKADDR_IN csin = {0};
-        SOCKET csock;
-        int sinsize = sizeof csin;
-        m_fd = socket(AF_INET, SOCK_STREAM, 0);
-        if(m_fd == INVALID_SOCKET)
-            throw log_error("socket() invalid");
+// class Server : virtual public ESC::CLI
+// {
+//     public:
+//     Server(int verbose = -1)
+//         : ESC::CLI(verbose - 1, "Client"), m_client(verbose)
+//     {
+//         SOCKADDR_IN sin = {0};
+//         SOCKADDR_IN csin = {0};
+//         SOCKET csock;
+//         int sinsize = sizeof csin;
+//         m_fd = socket(AF_INET, SOCK_STREAM, 0);
+//         if(m_fd == INVALID_SOCKET)
+//             throw log_error("socket() invalid");
 
-        sin.sin_addr.s_addr = htonl(INADDR_ANY);
-        sin.sin_port = htons(5001);
-        sin.sin_family = AF_INET;
+//         sin.sin_addr.s_addr = htonl(INADDR_ANY);
+//         sin.sin_port = htons(5001);
+//         sin.sin_family = AF_INET;
 
-	int yes=1;
-	if (setsockopt(m_fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) == -1) {
-    perror("setsockopt");
-    exit(1);
-}
-	
-        if(bind(m_fd, (SOCKADDR *)&sin, sizeof sin) == SOCKET_ERROR)
-            throw log_error("bind()");
-        if(listen(m_fd, 5) == SOCKET_ERROR)
-            throw log_error("listen()");
-        csock = accept(m_fd, (SOCKADDR *)&csin, (socklen_t *)&sinsize);
-        if(csock == INVALID_SOCKET)
-            throw log_error("accept()");
+//         int yes = 1;
+//         if(setsockopt(m_fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) == -1)
+//         {
+//             perror("setsockopt");
+//             exit(1);
+//         }
 
-        m_client.from_socket(csock);
-    };
-  ~Server()
-  {
-    close(m_fd);
-    m_client.close_connection();
-    std::cout << "closing socket" << std::endl;
-  }
-public:
-    SOCKET m_fd;
-    Client m_client;
-};
+//         if(bind(m_fd, (SOCKADDR *)&sin, sizeof sin) == SOCKET_ERROR)
+//             throw log_error("bind()");
+//         if(listen(m_fd, 5) == SOCKET_ERROR)
+//             throw log_error("listen()");
+//         csock = accept(m_fd, (SOCKADDR *)&csin, (socklen_t *)&sinsize);
+//         if(csock == INVALID_SOCKET)
+//             throw log_error("accept()");
+
+//         m_client.from_socket(csock);
+//     };
+//     ~Server()
+//     {
+//         close(m_fd);
+//         m_client.close_connection();
+//         std::cout << "closing socket" << std::endl;
+//     }
+
+//     public:
+//     SOCKET m_fd;
+//     Client m_client;
+// };
 
 } // namespace Communication
+
+
 
 #endif //COM_CLIENT_HPP
