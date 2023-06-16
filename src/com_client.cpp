@@ -102,8 +102,9 @@ Client::mk_crctable(uint16_t genpoly)
 {
     static bool once = [this, genpoly]()//init crc table only once
     {
-        for(uint16_t d = 0; d < 256; d++)
+        for(uint16_t data = 0; data < 256; data++)
         {
+            uint16_t d = data;
             uint16_t accum = 0;
             d <<= 8;
             for(int i = 8; i > 0; i--)
