@@ -10,6 +10,7 @@ TCP::TCP(int verbose) : Client(verbose), ESC::CLI(verbose, "TCP-Client") {}
 int
 TCP::open_connection(const char *address, int port, int timeout)
 {
+    m_ip = address;
     SOCKADDR_IN sin = {0};
     struct hostent *hostinfo;
     TIMEVAL tv = {.tv_sec = timeout, .tv_usec = 0};
