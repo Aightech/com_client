@@ -73,7 +73,8 @@ HTTP::post(const char *page, const char *content, int n)
     //get the code of the response
     char *c = strstr(buffer, "HTTP/1.1 ");
     if(c == NULL)
-        throw log_error("Code HTTP/1.1 not found in header");
+        throw log_error("Code HTTP/1.1 not found in header in : " +
+                        std::string(buffer));
     int code = strtol(c + 9, NULL, 10);
     std::string code_str(c + 9, 3);
 
@@ -96,9 +97,7 @@ HTTP::post(const char *page, const char *content, int n)
     c = strstr(c, "{");
     c[size] = '\0';
     std::string s(c);
-    logln(ESC::fstr("OK", {ESC::FG_GREEN, ESC::BOLD})+ "Received [" +
-              std::to_string(size) + " bytes] : " + s,
-          true);
+    logln(ESC::fstr("OK ", {ESC::FG_GREEN, ESC::BOLD}), true);
     return c;
 };
 
