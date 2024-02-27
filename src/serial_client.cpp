@@ -122,6 +122,7 @@ Serial::open_connection(const char *path, int baud, int flags)
     if(tcsetattr(m_fd, TCSANOW, &tty) != 0)
         throw m_id + "[ERROR] Could not set the serial port settings.";
     logln("Serial port settings saved (" + std::to_string(baud) + " baud).");
+    m_is_connected = true;
     return m_fd;
 }
 
