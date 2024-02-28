@@ -53,6 +53,7 @@ Client::close_connection()
     logln("Closing connection ", true);
     int n = closesocket(m_fd);
     logln(fstr("OK", {BOLD, FG_GREEN}));
+    m_is_connected = false;
     return n;
 }
 

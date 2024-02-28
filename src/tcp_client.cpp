@@ -72,6 +72,7 @@ TCP::open_connection(const char *address, int port, int timeout)
     {
         throw log_error("Connection error");
     }
+    m_is_connected = true;
 
     return 1;
 }
@@ -80,20 +81,26 @@ int
 TCP::readS(uint8_t *buffer, size_t size, bool has_crc, bool read_until)
 {
     std::lock_guard<std::mutex> lck(*m_mutex); //ensure only one thread using it
-    int n = recv(m_fd, buffer, size, 0);
-    if(n != size && read_until)
-        while(n != size) n += recv(m_fd, buffer + n, size - n, 0);
+    if(m_is_connected)
+    {
+        int n = recv(m_fd, buffer, size, 0);
+        if(n != size && read_until)
+            while(n != size) n += recv(m_fd, buffer + n, size - n, 0);
 
-    if(has_crc)
-        return check_CRC(buffer, size) ? n : -1;
-    return n;
+        if(has_crc)
+            return check_CRC(buffer, size) ? n : -1;
+        return n;
+    }
+    return -1;
 }
 
 int
 TCP::writeS(const void *buffer, size_t size, bool add_crc)
 {
     std::lock_guard<std::mutex> lck(*m_mutex); //ensure only one thread using it
-    return send(m_fd, buffer, size + 2 * add_crc, 0);
+    if(m_is_connected)
+        return send(m_fd, buffer, size + 2 * add_crc, 0);
+    return -1;
 }
 
 } // namespace Communication

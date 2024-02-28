@@ -1,4 +1,6 @@
 #include "serial_client.hpp"
+#include <fcntl.h>
+#include <linux/input.h>
 
 namespace Communication
 {
@@ -26,10 +28,31 @@ Serial::open_connection(const char *path, int baud, int flags)
     cli_id() += ((cli_id() == "") ? "" : " - ") +
                 fstr_link(std::string(path) + ":" + mode);
 
-    logln("Connection in progress" + fstr("...", {BLINK_SLOW}));
+    logln("Connection in progress" + fstr("...", {BLINK_SLOW}), true);
 
     m_fd = open(path, flags);
     logln("Check connection: [fd:" + std::to_string(m_fd) + "] ");
+    if(m_fd == -1)
+    {
+        logln("Scanning input for \"" + std::string(path) + "\"");
+        std::string dev_path;
+        std::string dev_name = path;
+        for(int i = 0; i < 40; i++)
+        {
+            dev_path = "/dev/input/event" + std::to_string(i);
+            m_fd = open(dev_path.c_str(), O_RDWR);
+            if(m_fd > 0)
+            {
+                char test[256];
+                ioctl(m_fd, EVIOCGNAME(sizeof(test)), test);
+                if(dev_name == std::string(test))
+                    break;
+                close(m_fd);
+                m_fd = -1;
+            }
+        }
+        m_fd = open(dev_path.c_str(), O_RDWR);
+    }
     if(m_fd < 0)
         throw log_error("Could not open the serial port.");
 
@@ -122,6 +145,7 @@ Serial::open_connection(const char *path, int baud, int flags)
     if(tcsetattr(m_fd, TCSANOW, &tty) != 0)
         throw m_id + "[ERROR] Could not set the serial port settings.";
     logln("Serial port settings saved (" + std::to_string(baud) + " baud).");
+    m_is_connected = true;
     return m_fd;
 }
 
@@ -129,24 +153,32 @@ int
 Serial::readS(uint8_t *buffer, size_t size, bool has_crc, bool read_until)
 {
     std::lock_guard<std::mutex> lck(*m_mutex); //ensure only one thread using it
-    int n = read(m_fd, buffer, size);
-    if(n != size && read_until)
-        while(n != size) n += read(m_fd, buffer + n, size - n);
+    if(m_is_connected)
+    {
+        int n = read(m_fd, buffer, size);
+        if(n != size && read_until)
+            while(n != size) n += read(m_fd, buffer + n, size - n);
 
-    if(has_crc)
-        return check_CRC(buffer, size) ? n : -1;
-    return n;
+        if(has_crc)
+            return check_CRC(buffer, size) ? n : -1;
+        return n;
+    }
+    return -1;
 }
 
 int
 Serial::writeS(const void *buffer, size_t size, bool add_crc)
 {
     std::lock_guard<std::mutex> lck(*m_mutex); //ensure only one thread using it
-    int n = 0;
-    if(add_crc)
-        *(uint16_t *)((uint8_t *)buffer + size) =
-            CRC((uint8_t *)buffer, size); // add crc
-    return write(m_fd, buffer, size + 2 * add_crc);
+    if(m_is_connected)
+    {
+        int n = 0;
+        if(add_crc)
+            *(uint16_t *)((uint8_t *)buffer + size) =
+                CRC((uint8_t *)buffer, size); // add crc
+        return write(m_fd, buffer, size + 2 * add_crc);
+    }
+    return -1;
 }
 
 } // namespace Communication
