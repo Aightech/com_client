@@ -36,7 +36,6 @@ class HTTP :  public TCP
     post(const char *page, const char *content = NULL, int n = -1);
 
     private:
-    std::string m_ip;
     char m_header_post[1024];
     char m_header_post_with_data[1024];
     char m_header_get[1024];

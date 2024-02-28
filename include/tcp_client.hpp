@@ -47,7 +47,8 @@ class TCP : public Client
     int
     writeS(const void *buffer, size_t size, bool add_crc = false);
 
-    private:
+    protected:
+    std::string m_ip;
     /* data */
 };
 
