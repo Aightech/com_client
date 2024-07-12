@@ -8,14 +8,18 @@
 #include <clocale>
 #include <cstring>
 
+#ifdef WIN32
+#include <winsock2.h>
+#include <ws2tcpip.h>
+
+#elif __linux__
 #include <sys/ioctl.h>
+#endif
 
 namespace Communication
 {
 
 using namespace ESC;
-
-
 
 Client::Client(int verbose) : ESC::CLI(verbose, "Client")
 {
@@ -101,7 +105,7 @@ uint16_t Client::s_crctable[256];
 void
 Client::mk_crctable(uint16_t genpoly)
 {
-    static bool once = [this, genpoly]()//init crc table only once
+    static bool once = [this, genpoly]() //init crc table only once
     {
         for(uint16_t data = 0; data < 256; data++)
         {

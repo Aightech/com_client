@@ -1,7 +1,10 @@
 #include "serial_client.hpp"
 #include <fcntl.h>
+#ifdef __linux__
 #include <linux/input.h>
-
+#elif _WIN32
+#include <windows.h>
+#endif
 namespace Communication
 {
 
@@ -30,8 +33,39 @@ Serial::open_connection(const char *path, int baud, int flags)
 
     logln("Connection in progress" + fstr("...", {BLINK_SLOW}), true);
 
+#ifdef __linux__
     m_fd = open(path, flags);
+#elif _WIN32
+    //mode
+    DWORD dwAccess = 0;
+    if((flags & O_RDWR) == O_RDWR)
+        dwAccess = GENERIC_READ | GENERIC_WRITE;
+    else if((flags & O_RDONLY) == O_RDONLY)
+        dwAccess = GENERIC_READ;
+    else if((flags & O_WRONLY) == O_WRONLY)
+        dwAccess = GENERIC_WRITE;
+    else
+        dwAccess = 0;
+    //share mode
+    DWORD dwShareMode = 0;
+    if((flags & O_NOCTTY) == O_NOCTTY)
+        dwShareMode = 0;
+    else
+        dwShareMode = FILE_SHARE_READ | FILE_SHARE_WRITE;
+    //create mode
+    DWORD dwCreationDisposition = 0;
+    if((flags & O_CREAT) == O_CREAT)
+        dwCreationDisposition = CREATE_ALWAYS;
+    else
+        dwCreationDisposition = OPEN_EXISTING;
+    //flags
+    DWORD dwFlagsAndAttributes = 0;
+
+    m_fd = CreateFile(path, dwAccess, dwShareMode, NULL, dwCreationDisposition,
+                      dwFlagsAndAttributes, NULL);
+#endif
     logln("Check connection: [fd:" + std::to_string(m_fd) + "] ");
+#ifdef __linux__
     if(m_fd == -1)
     {
         logln("Scanning input for \"" + std::string(path) + "\"");
@@ -55,7 +89,12 @@ Serial::open_connection(const char *path, int baud, int flags)
     }
     if(m_fd < 0)
         throw log_error("Could not open the serial port.");
+#elif _WIN32
+    if(m_fd == INVALID_HANDLE_VALUE)
+        throw log_error("Could not open the serial port.");
+#endif
 
+#ifdef __linux__
     struct termios tty;
     if(tcgetattr(m_fd, &tty) != 0)
         throw log_error("Could not get the serial port settings.");
@@ -145,6 +184,34 @@ Serial::open_connection(const char *path, int baud, int flags)
     if(tcsetattr(m_fd, TCSANOW, &tty) != 0)
         throw m_id + "[ERROR] Could not set the serial port settings.";
     logln("Serial port settings saved (" + std::to_string(baud) + " baud).");
+#elif _WIN32
+    DCB dcbSerialParams = {0};
+    dcbSerialParams.DCBlength = sizeof(dcbSerialParams);
+    if(!GetCommState(m_fd, &dcbSerialParams))
+        throw log_error("Could not get the serial port settings.");
+
+    dcbSerialParams.BaudRate = baud;
+    dcbSerialParams.ByteSize = 8;
+    dcbSerialParams.StopBits = ONESTOPBIT;
+    dcbSerialParams.Parity = NOPARITY;
+    dcbSerialParams.fDtrControl = DTR_CONTROL_ENABLE;
+    dcbSerialParams.fRtsControl = RTS_CONTROL_ENABLE;
+    dcbSerialParams.fOutxCtsFlow = FALSE;
+    dcbSerialParams.fOutxDsrFlow = FALSE;
+    dcbSerialParams.fOutX = FALSE;
+    dcbSerialParams.fInX = FALSE;
+    dcbSerialParams.fBinary = TRUE;
+    dcbSerialParams.fParity = FALSE;
+    dcbSerialParams.fNull = FALSE;
+    dcbSerialParams.fAbortOnError = FALSE;
+    dcbSerialParams.fErrorChar = FALSE;
+    dcbSerialParams.fTXContinueOnXoff = FALSE;
+
+    if(!SetCommState(m_fd, &dcbSerialParams))
+        throw log_error("Could not set the serial port settings.");
+    logln("Serial port settings saved (" + std::to_string(baud) + " baud).");
+#endif
+
     m_is_connected = true;
     return m_fd;
 }
@@ -155,9 +222,23 @@ Serial::readS(uint8_t *buffer, size_t size, bool has_crc, bool read_until)
     std::lock_guard<std::mutex> lck(*m_mutex); //ensure only one thread using it
     if(m_is_connected)
     {
+#ifdef __linux__
         int n = read(m_fd, buffer, size);
         if(n != size && read_until)
             while(n != size) n += read(m_fd, buffer + n, size - n);
+#elif _WIN32
+        DWORD n = 0;
+        if(!ReadFile(m_fd, buffer, size, &n, NULL))
+            throw log_error("Could not read the serial port.");
+        if(n != size && read_until)
+            while(n != size)
+            {
+                DWORD n2 = 0;
+                if(!ReadFile(m_fd, buffer + n, size - n, &n2, NULL))
+                    throw log_error("Could not read the serial port.");
+                n += n2;
+            }
+#endif
 
         if(has_crc)
             return check_CRC(buffer, size) ? n : -1;
@@ -176,7 +257,13 @@ Serial::writeS(const void *buffer, size_t size, bool add_crc)
         if(add_crc)
             *(uint16_t *)((uint8_t *)buffer + size) =
                 CRC((uint8_t *)buffer, size); // add crc
+#ifdef __linux__
         return write(m_fd, buffer, size + 2 * add_crc);
+#elif _WIN32
+        if(!WriteFile(m_fd, buffer, size + 2 * add_crc, (LPDWORD)&n, NULL))
+            throw log_error("Could not write the serial port.");
+        return n;
+#endif
     }
     return -1;
 }
