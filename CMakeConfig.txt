@@ -8,6 +8,10 @@ if(0)
   set(EXTRA_LIBS "pthread" "util")
 endif()
 
+if(WIN32)
+	set(EXTRA_LIBS "ws2_32")
+endif(WIN32)
+
 ###### Boost libraries ######
 if(0)
   find_package(Boost 1.56 REQUIRED COMPONENTS system filesystem iostreams)
