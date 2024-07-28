@@ -10,9 +10,9 @@ TCP::TCP(int verbose) : Client(verbose), ESC::CLI(verbose, "TCP-Client") {}
 int
 TCP::open_connection(const char *address, int port, int timeout)
 {
-	#ifdef __linux__
     m_ip = address;
     SOCKADDR_IN sin = {0};
+#ifdef __linux__
     struct hostent *hostinfo;
     TIMEVAL tv = {.tv_sec = timeout, .tv_usec = 0};
     int res;
@@ -75,7 +75,33 @@ TCP::open_connection(const char *address, int port, int timeout)
         throw log_error("Connection error");
     }
     m_is_connected = true;
-	#endif
+#elif _WIN32
+    // WSADATA WSAData;
+    // int err = WSAStartup(MAKEWORD(2, 2), &WSAData);
+    // if(err < 0)
+    //     throw log_error("WSAStartup failed !");
+    // set_cli_id(cli_id() + ((cli_id() == "") ? "" : " - ") +
+    //            fstr_link(std::string(address) + ":" + std::to_string(port)));
+
+    // m_fd = socket(AF_INET, SOCK_STREAM, 0);
+    // if(m_fd == INVALID_SOCKET)
+    //     throw log_error("socket() invalid");
+
+    // sin.sin_addr.s_addr = inet_addr(address);
+    // sin.sin_port = htons(port);
+    // sin.sin_family = AF_INET;
+
+    // logln("Connection in progress" + fstr("...", {BLINK_SLOW}) +
+    //           " (timeout=" + std::to_string(timeout) + "s)",
+    //       true);
+
+    // if(timeout != -1)
+    //     this->SetSocketBlockingEnabled(false); //set socket non-blocking
+    // int res = connect(m_fd, (SOCKADDR *)&sin, sizeof(SOCKADDR)); //try to connect
+
+    // if(timeout != -1)
+    //     this->SetSocketBlockingEnabled(true); //set socket blocking
+#endif
 
     return 1;
 }
@@ -86,14 +112,26 @@ TCP::readS(uint8_t *buffer, size_t size, bool has_crc, bool read_until)
     std::lock_guard<std::mutex> lck(*m_mutex); //ensure only one thread using it
     if(m_is_connected)
     {
-		#ifdef __linux__
+#ifdef __linux__
         int n = recv(m_fd, buffer, size, 0);
         if(n != size && read_until)
             while(n != size) n += recv(m_fd, buffer + n, size - n, 0);
+#elif _WIN32
+        DWORD n = 0;
+        if(!ReadFile((HANDLE)m_fd, buffer, size, &n, NULL))
+            throw log_error("Could not read the serial port.");
+        if(n != size && read_until)
+            while(n != size)
+            {
+                DWORD n2 = 0;
+                if(!ReadFile((HANDLE)m_fd, buffer + n, size - n, &n2, NULL))
+                    throw log_error("Could not read the serial port.");
+                n += n2;
+            }
+#endif
         if(has_crc)
             return check_CRC(buffer, size) ? n : -1;
         return n;
-		#endif
     }
     return -1;
 }
@@ -102,10 +140,13 @@ int
 TCP::writeS(const void *buffer, size_t size, bool add_crc)
 {
     std::lock_guard<std::mutex> lck(*m_mutex); //ensure only one thread using it
-	#ifdef __linux__
+#ifdef __linux__
     if(m_is_connected)
         return send(m_fd, buffer, size + 2 * add_crc, 0);
-	#endif
+#elif _WIN32
+    if(m_is_connected)
+        return WriteFile((HANDLE)m_fd, buffer, size + 2 * add_crc, (LPDWORD)&n, NULL);
+#endif
     return -1;
 }
 
