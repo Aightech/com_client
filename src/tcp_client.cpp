@@ -129,6 +129,7 @@ TCP::readS(uint8_t *buffer, size_t size, bool has_crc, bool read_until)
                 n += n2;
             }
 #endif
+        int n = 0;
         if(has_crc)
             return check_CRC(buffer, size) ? n : -1;
         return n;

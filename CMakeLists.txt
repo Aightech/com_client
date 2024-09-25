@@ -112,8 +112,8 @@ else ()
     endif()
   endif()
 
-  
-
+  ###### Search for LSL ######
+  find_package(LSL REQUIRED HINTS ${LSL_DIR})
 
   ###### Search for Subdirectories/Libraries ######
   if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/lib")
@@ -140,31 +140,6 @@ else ()
     endforeach()
   endif()
 
-  ###### Search for Subdirectories/Libraries ######
-  if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tool_lib")
-    execute_process(COMMAND git submodule status
-      WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-      OUTPUT_VARIABLE SUBMODULES_LIST)
-    subdirlist(LIBS "${CMAKE_CURRENT_SOURCE_DIR}/tool_lib/")
-    foreach(subdir ${LIBS})
-      string(FIND "${SUBMODULES_LIST}" "${subdir}" FOUND)
-      if(${FOUND} GREATER -1 AND NO_CONNECTION EQUAL 1 )
-	#git submodules init
-	execute_process(COMMAND git submodule update --remote --merge --init -- "tool_lib/${subdir}"
-	  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} OUTPUT_VARIABLE OUTPUT)
-      endif()
-      subproject_version("tool_lib/${subdir}" subdir_version)#get the version
-      message("${PREFIX_MSG}-- ${ColourBold}${Esc}[${color_code}m${EXEC_NAME}${ColourReset}: Adding ${ColourBold}tool${ColourReset} library ${ColourBold}${Esc}[${color_code2}m${subdir}${ColourReset} version: ${ColourBold}${subdir_version}${ColourReset}")
-      add_subdirectory("tool_lib/${subdir}")
-      
-      get_directory_property(libname
-	DIRECTORY "tool_lib/${subdir}"
-	DEFINITION LIB_NAME)
-      list(APPEND TOOL_LIBS "${libname}")
-      link_directories(${CMAKE_SOURCE_DIR}/tool_lib/${subdir}/bin)    
-    endforeach()
-  endif()
-
 
   ###### Create the library ######
   add_library(${LIB_NAME}  SHARED ${LIB_SRCS})
@@ -180,13 +155,14 @@ else ()
   add_executable(${EXEC_NAME} ${MAIN_FILE})
   target_link_libraries (${EXEC_NAME}
     PUBLIC ${LIB_NAME}
-    PUBLIC ${TOOL_LIBS})
+    PUBLIC LSL::lsl
+  )
   target_include_directories(${EXEC_NAME}
     PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 
 
 
-  ###### Instalation rule ######
+  ###### Installation rule ######
   install(TARGETS ${EXEC_NAME} DESTINATION bin)
   install(TARGETS ${LIB_NAME} DESTINATION bin)
   install(FILES ${HEADERS} DESTINATION include)
