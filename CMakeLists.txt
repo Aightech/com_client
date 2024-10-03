@@ -112,9 +112,6 @@ else ()
     endif()
   endif()
 
-  ###### Search for LSL ######
-  find_package(LSL REQUIRED HINTS ${LSL_DIR})
-
   ###### Search for Subdirectories/Libraries ######
   if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/lib")
     execute_process(COMMAND git submodule status
@@ -155,7 +152,6 @@ else ()
   add_executable(${EXEC_NAME} ${MAIN_FILE})
   target_link_libraries (${EXEC_NAME}
     PUBLIC ${LIB_NAME}
-    PUBLIC LSL::lsl
   )
   target_include_directories(${EXEC_NAME}
     PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")

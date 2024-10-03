@@ -10,7 +10,6 @@
 #include "serial_client.hpp"
 #include "tcp_client.hpp"
 #include "udp_client.hpp"
-#include <lsl_cpp.h>
 
 int
 main(int argc, char **argv)
@@ -64,9 +63,6 @@ main(int argc, char **argv)
     try
     {
         int nb_ch = 8;
-        lsl::stream_info info_sample("forces", "sample", nb_ch, 0,
-                                     lsl::cf_int32);
-        lsl::stream_outlet outlet_sample(info_sample);
         std::vector<int32_t> sample(nb_ch);
         std::cout << "[INFOS] Now sending data... " << std::endl;
         for(int t = 0;; t++)
@@ -86,7 +82,6 @@ main(int argc, char **argv)
                 std::cout << sample[i] << " ";
             }
             std::cout << std::endl;
-            outlet_sample.push_sample(sample);
         }
     }
     catch(std::exception &e)
