@@ -1,9 +1,9 @@
 set(EXEC_NAME com_client)
-set(PROJECT_VERSION 6.5)
+set(PROJECT_VERSION 8.1)
 
 ###### Special libraries ######
 set(EXTRA_LIBS "")
-set(TOOL_LIBS "")		
+set(TOOL_LIBS "")
 if(0)
   set(EXTRA_LIBS "pthread" "util")
 endif()

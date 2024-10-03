@@ -155,7 +155,7 @@ else ()
   endif()
 
   ###### Search for Subdirectories/Libraries ######
-  if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tool_lib" AND BUILD_EXAMPLES)
+  if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tool_lib" AND BUILD_EXAMPLES AND DIR_DEPTH EQUAL 0)
     execute_process(COMMAND git submodule status
       WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
       OUTPUT_VARIABLE SUBMODULES_LIST)
@@ -203,8 +203,8 @@ else ()
 
 
 
-  ###### Create the executable ######
-  if (BUILD_EXAMPLES)
+  ###### Create the executable only if examples are enabled and buildind from the root ######
+  if (BUILD_EXAMPLES AND DIR_DEPTH EQUAL 0)
     #for each main file
     foreach(MAIN_FILE ${MAIN_FILES})
       #the name of the executable is the name of the project + the main file (without the "main" and extension)

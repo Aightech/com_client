@@ -7,7 +7,9 @@
 
 #ifdef WIN32 //////////// IF WINDOWS OS //////////
 #include <winsock2.h>
-#elif defined(linux) ///// IF LINUX OS //////////
+#include <windows.h>
+#include <commctrl.h>
+#elif defined(linux) || defined(__APPLE__) ///// IF LINUX OS //////////
 #include <arpa/inet.h>
 #include <netdb.h> // gethostbyname
 #include <netinet/in.h>
@@ -30,7 +32,7 @@
 namespace Communication
 {
 
-#if defined(linux)
+#if defined(linux) || defined(__APPLE__)
 #define INVALID_SOCKET -1
 #define SOCKET_ERROR -1
 #define closesocket(s) close(s)
@@ -150,7 +152,6 @@ class Client : virtual public ESC::CLI
     bool m_is_connected = false;
     std::mutex *m_mutex;
     SOCKADDR_IN m_addr_to = {0};
-    socklen_t m_size_addr;
     std::string m_id;
 };
 

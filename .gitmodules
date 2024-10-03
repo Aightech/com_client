@@ -1,7 +1,3 @@
-[submodule "tool_lib/built_lsl"]
-	path = tool_lib/built_lsl
-	url = ../built_lsl
-	branch = main
 [submodule "lib/strANSIseq"]
 	path = lib/strANSIseq
 	url = ../strANSIseq
