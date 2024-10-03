@@ -112,7 +112,7 @@ TCP::readS(uint8_t *buffer, size_t size, bool has_crc, bool read_until)
     std::lock_guard<std::mutex> lck(*m_mutex); //ensure only one thread using it
     if(m_is_connected)
     {
-#ifdef __linux__
+#if defined(__linux__) || defined(__APPLE__)
         int n = recv(m_fd, buffer, size, 0);
         if(n != size && read_until)
             while(n != size) n += recv(m_fd, buffer + n, size - n, 0);

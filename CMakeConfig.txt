@@ -3,7 +3,7 @@ set(PROJECT_VERSION 7.4)
 
 ###### Special libraries ######
 set(EXTRA_LIBS "")
-set(TOOL_LIBS "")		
+set(TOOL_LIBS "")
 if(0)
   set(EXTRA_LIBS "pthread" "util")
 endif()

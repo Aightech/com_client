@@ -1,10 +1,10 @@
 # com_client
 
-This C++ library provides a unified interface for different types of communication modes (serial, TCP, and UDP). It is designed to be cross-platform, supporting both Windows and Linux systems. The library allows you to open, close, read from, and write to a connection. It also implements CRC16 checksum functionality.
+This C++ library provides a unified interface for different types of communication modes (serial, TCP, and UDP). It is designed to be cross-platform. The library allows you to open, close, read from, and write to a connection. It also implements CRC16 checksum functionality.
 
 # Features
 - Establish connections in various modes: Serial, TCP, or UDP.
-- Cross-platform support (Windows and Linux).
+- Cross-platform support (Windows, Linux, macOS).
 - Methods for opening and closing connections.
 - Methods for reading from and writing to the connection.
 - CRC16 checksum calculation.

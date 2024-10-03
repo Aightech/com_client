@@ -1,10 +1,18 @@
 #include "serial_client.hpp"
+
 #ifdef __linux__
 #include <linux/input.h>
 #elif _WIN32
 #include <windows.h>
 #include <commctrl.h>
+#elif __APPLE__
+#include <termios.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/ioctl.h>
+#include <IOKit/serial/ioss.h>
 #endif
+
 namespace Communication
 {
 
@@ -36,7 +44,7 @@ Serial::open_connection(const char *path, int baud, int flags)
 #ifdef __linux__
     m_fd = open(path, flags);
 #elif _WIN32
-    //mode
+    // Windows-specific code
     DWORD dwAccess = 0;
     if((flags & O_RDWR) == O_RDWR)
         dwAccess = GENERIC_READ | GENERIC_WRITE;
@@ -46,27 +54,28 @@ Serial::open_connection(const char *path, int baud, int flags)
         dwAccess = GENERIC_WRITE;
     else
         dwAccess = 0;
-    //share mode
     DWORD dwShareMode = 0;
     if((flags & O_NOCTTY) == O_NOCTTY)
         dwShareMode = 0;
     else
         dwShareMode = FILE_SHARE_READ | FILE_SHARE_WRITE;
-    //create mode
     DWORD dwCreationDisposition = 0;
     if((flags & O_CREAT) == O_CREAT)
         dwCreationDisposition = CREATE_ALWAYS;
     else
         dwCreationDisposition = OPEN_EXISTING;
-    //flags
     DWORD dwFlagsAndAttributes = 0;
 
     HANDLE fd = CreateFile(path, dwAccess, dwShareMode, NULL, dwCreationDisposition,
-                      dwFlagsAndAttributes, 
-					  0);
-	m_fd = (uint64_t)fd;
+                           dwFlagsAndAttributes,
+                           0);
+    m_fd = (uint64_t)fd;
+#elif __APPLE__
+    m_fd = open(path, flags | O_NOCTTY | O_NDELAY);
 #endif
+
     logln("Check connection: [fd:" + std::to_string(m_fd) + "] ");
+
 #ifdef __linux__
     if(m_fd == -1)
     {
@@ -94,9 +103,13 @@ Serial::open_connection(const char *path, int baud, int flags)
 #elif _WIN32
     if((HANDLE)m_fd == INVALID_HANDLE_VALUE)
         throw log_error("Could not open the serial port.");
+#elif __APPLE__
+    if(m_fd == -1)
+        throw log_error("Could not open the serial port.");
 #endif
 
 #ifdef __linux__
+    // Linux-specific serial port settings
     struct termios tty;
     if(tcgetattr(m_fd, &tty) != 0)
         throw log_error("Could not get the serial port settings.");
@@ -115,18 +128,11 @@ Serial::open_connection(const char *path, int baud, int flags)
     tty.c_iflag &= ~(IXON | IXOFF | IXANY); // Turn off s/w flow ctrl
     tty.c_iflag &= ~(IGNBRK | BRKINT | PARMRK | ISTRIP | INLCR | IGNCR |
                      ICRNL); // Disable any special handling of received bytes
-    //tty.c_lflag &= ~IEXTEN; // Disable any special handling of received bytes
-    //add ECHOK
-    //tty.c_lflag &= ~ECHOK;
-    //tty.c_lflag &= ~ECHOKE;
-    //tty.c_lflag &= ~ECHOCTL;
 
-    tty.c_oflag &= ~OPOST; // Prevent spe. interp. of out bytes (newline chars)
-    tty.c_oflag &= ~ONLCR; // Prevent conv of newline to car. ret/line feed
-    // tty.c_oflag &= ~OXTABS; // Prevent conversion of tabs to spaces (NOT PRESENT ON LINUX)
-    // tty.c_oflag &= ~ONOEOT; // Prevent removal of C-d chars (0x004) in output (NOT PRESENT ON LINUX)
+    tty.c_oflag &= ~OPOST; // Prevent special interpretation of output bytes
+    tty.c_oflag &= ~ONLCR; // Prevent conversion of newline to carriage return/line feed
 
-    tty.c_cc[VTIME] = 40; // Wait for up to 4s, ret when any data is received.
+    tty.c_cc[VTIME] = 40; // Wait for up to 4s, returning as soon as any data is received.
     tty.c_cc[VMIN] = 0;
 
     // Set in/out baud rate
@@ -170,23 +176,11 @@ Serial::open_connection(const char *path, int baud, int flags)
     cfsetispeed(&tty, speed);
     cfsetospeed(&tty, speed);
 
-    //tcflush(m_fd, TCIFLUSH);
-    // int n = TIOCM_DTR;
-    // ioctl(m_fd, TIOCMBIS, &n);
-    // usleep(2500);
-    // ioctl(m_fd, TIOCMBIC, &n);
-    // usleep(2500);
-
-    // n= TIOCM_RTS;
-    //    ioctl(m_fd, TIOCMBIS, &n);
-    //    usleep(1000);
-    //    ioctl(m_fd, TIOCMBIC, &n);
-
-    // Save tty settings, also checking for error
     if(tcsetattr(m_fd, TCSANOW, &tty) != 0)
         throw m_id + "[ERROR] Could not set the serial port settings.";
     logln("Serial port settings saved (" + std::to_string(baud) + " baud).");
 #elif _WIN32
+    // Windows-specific serial port settings
     DCB dcbSerialParams = {0};
     dcbSerialParams.DCBlength = sizeof(dcbSerialParams);
     if(!GetCommState((HANDLE)m_fd, &dcbSerialParams))
@@ -212,6 +206,41 @@ Serial::open_connection(const char *path, int baud, int flags)
     if(!SetCommState((HANDLE)m_fd, &dcbSerialParams))
         throw log_error("Could not set the serial port settings.");
     logln("Serial port settings saved (" + std::to_string(baud) + " baud).");
+#elif __APPLE__
+    // macOS-specific serial port settings
+    struct termios tty;
+    if(tcgetattr(m_fd, &tty) != 0)
+        throw log_error("Could not get the serial port settings.");
+
+    cfmakeraw(&tty);
+
+    //  Set the temporal baud rate
+    cfsetispeed(&tty, B38400);
+    cfsetospeed(&tty, B38400);
+
+    tty.c_cflag |= (CLOCAL | CREAD);    // Enable receiver, local mode
+    tty.c_cflag &= ~CSIZE;
+    tty.c_cflag |= CS8;                 // 8 data bits
+    tty.c_cflag &= ~PARENB;             // No parity
+    tty.c_cflag &= ~CSTOPB;             // 1 stop bit
+    tty.c_cflag &= ~CRTSCTS;            // No hardware flow control
+
+    tty.c_lflag &= ~(ICANON | ECHO | ECHOE | ISIG); // Raw input
+    tty.c_iflag &= ~(IXON | IXOFF | IXANY);         // No flow control
+    tty.c_oflag &= ~OPOST;                          // Raw output
+
+    tty.c_cc[VMIN] = 0;
+    tty.c_cc[VTIME] = 40; // 4 seconds timeout
+
+    if(tcsetattr(m_fd, TCSANOW, &tty) != 0)
+        throw log_error("Could not set the serial port settings.");
+
+    // set custom baud rate
+    speed_t speed = baud;
+    if(ioctl(m_fd, IOSSIOSPEED, &speed) == -1)
+        throw log_error("Could not set custom baud rate.");
+
+    logln("Serial port settings saved (" + std::to_string(baud) + " baud).");
 #endif
 
     m_is_connected = true;
@@ -221,10 +250,10 @@ Serial::open_connection(const char *path, int baud, int flags)
 int
 Serial::readS(uint8_t *buffer, size_t size, bool has_crc, bool read_until)
 {
-    std::lock_guard<std::mutex> lck(*m_mutex); //ensure only one thread using it
+    std::lock_guard<std::mutex> lck(*m_mutex); // Ensure only one thread uses it
     if(m_is_connected)
     {
-#ifdef __linux__
+#if defined(__linux__) || defined(__APPLE__)
         int n = read(m_fd, buffer, size);
         if(n != size && read_until)
             while(n != size) n += read(m_fd, buffer + n, size - n);
@@ -252,17 +281,17 @@ Serial::readS(uint8_t *buffer, size_t size, bool has_crc, bool read_until)
 int
 Serial::writeS(const void *buffer, size_t size, bool add_crc)
 {
-    std::lock_guard<std::mutex> lck(*m_mutex); //ensure only one thread using it
+    std::lock_guard<std::mutex> lck(*m_mutex); // Ensure only one thread uses it
     if(m_is_connected)
     {
-        int n = 0;
         if(add_crc)
             *(uint16_t *)((uint8_t *)buffer + size) =
-                CRC((uint8_t *)buffer, size); // add crc
-#ifdef __linux__
+                CRC((uint8_t *)buffer, size); // Add CRC
+#if defined(__linux__) || defined(__APPLE__)
         return write(m_fd, buffer, size + 2 * add_crc);
 #elif _WIN32
-        if(!WriteFile((HANDLE)m_fd, buffer, size + 2 * add_crc, (LPDWORD)&n, NULL))
+        DWORD n = 0;
+        if(!WriteFile((HANDLE)m_fd, buffer, size + 2 * add_crc, &n, NULL))
             throw log_error("Could not write the serial port.");
         return n;
 #endif
