@@ -214,7 +214,7 @@ Serial::open_connection(const char *path, int baud, int flags)
 
     cfmakeraw(&tty);
 
-    // 一旦標準のボーレートを設定（B38400を使用）
+    //  Set the temporal baud rate
     cfsetispeed(&tty, B38400);
     cfsetospeed(&tty, B38400);
 
@@ -235,7 +235,7 @@ Serial::open_connection(const char *path, int baud, int flags)
     if(tcsetattr(m_fd, TCSANOW, &tty) != 0)
         throw log_error("Could not set the serial port settings.");
 
-    // カスタムボーレートを設定
+    // set custom baud rate
     speed_t speed = baud;
     if(ioctl(m_fd, IOSSIOSPEED, &speed) == -1)
         throw log_error("Could not set custom baud rate.");
