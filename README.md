@@ -15,7 +15,7 @@ This C++ library provides a unified interface for different types of communicati
 To build the project run:
 ```bash
 cd com_client
-mkdir build && cd build
+mkdir build && cd build -DBUILD_EXAMPLES=ON
 cmake .. && make
 ```
 
