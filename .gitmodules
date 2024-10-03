@@ -1,4 +1,4 @@
 [submodule "lib/strANSIseq"]
 	path = lib/strANSIseq
 	url = ../strANSIseq
-	branch = macOS
+	branch = main
