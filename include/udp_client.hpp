@@ -48,6 +48,7 @@ class UDP : public Client
 
     private:
     /* data */
+    uint32_t m_size_addr;
 };
 
 } // namespace Communication

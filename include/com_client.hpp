@@ -7,6 +7,8 @@
 
 #ifdef WIN32 //////////// IF WINDOWS OS //////////
 #include <winsock2.h>
+#include <windows.h>
+#include <commctrl.h>
 #elif defined(linux) ///// IF LINUX OS //////////
 #include <arpa/inet.h>
 #include <netdb.h> // gethostbyname
@@ -150,7 +152,6 @@ class Client : virtual public ESC::CLI
     bool m_is_connected = false;
     std::mutex *m_mutex;
     SOCKADDR_IN m_addr_to = {0};
-    socklen_t m_size_addr;
     std::string m_id;
 };
 

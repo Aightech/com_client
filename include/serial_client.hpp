@@ -3,6 +3,11 @@
 
 #include "com_client.hpp"
 #include <iostream>
+#include <fcntl.h>
+
+#ifdef _WIN32
+#define O_NOCTTY 0
+#endif
 
 namespace Communication
 {
