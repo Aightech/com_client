@@ -40,12 +40,12 @@ main(int argc, char **argv)
     {
         if(mode == "serial")
             device = new Communication::Serial(verbose);
-//        else if(mode == "tcp")
-//            device = new Communication::TCP(verbose);
-//        else if(mode == "udp")
-//            device = new Communication::UDP(verbose);
-//        else if(mode == "http")
-//            device = new Communication::HTTP(verbose);
+        else if(mode == "tcp")
+            device = new Communication::TCP(verbose);
+        else if(mode == "udp")
+            device = new Communication::UDP(verbose);
+        else if(mode == "http")
+            device = new Communication::HTTP(verbose);
         else
         {
             std::cout << "Mode not recognized" << std::endl;
