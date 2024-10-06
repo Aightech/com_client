@@ -192,9 +192,8 @@ else ()
     endforeach()
   endif()
 
-
   ###### Create the library ######
-  add_library(${LIB_NAME} ${LIB_SRCS})
+  add_library(${LIB_NAME} SHARED ${LIB_SRCS})
   target_link_libraries (${LIB_NAME}
     PUBLIC ${EXTRA_LIBS})
   target_include_directories(${LIB_NAME}
