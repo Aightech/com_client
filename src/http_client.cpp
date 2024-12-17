@@ -26,7 +26,7 @@ std::string
 HTTP::get(const char *page, int n)
 {
     char buffer[n];
-    sprintf(m_header, m_header_get, page, m_ip.c_str());
+    snprintf(m_header, 2048, m_header_get, page, m_ip.c_str());
     writeS(m_header, strlen(m_header));
     bool read_until = true;
     if(n == -1)
@@ -51,10 +51,10 @@ HTTP::post(const char *page, const char *content, int n)
 {
     m_content_length = content ? strlen(content) : 0;
     if(m_content_length > 0)
-        sprintf(m_header, m_header_post_with_data, page, m_ip.c_str(),
+        snprintf(m_header, 2048, m_header_post_with_data, page, m_ip.c_str(),
                 m_content_length);
     else
-        sprintf(m_header, m_header_post, page, m_ip.c_str());
+        snprintf(m_header, 2048, m_header_post, page, m_ip.c_str());
     writeS(m_header, strlen(m_header));
     if(m_content_length > 0)
         writeS(content, m_content_length);
