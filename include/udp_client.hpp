@@ -2,7 +2,10 @@
 #define __UDP_CLIENT_HPP__
 
 #include "com_client.hpp"
+#include <cstring>
 #include <iostream>
+#include <thread>
+#include <vector>
 
 namespace Communication
 {
@@ -10,7 +13,7 @@ class UDP : public Client
 {
     public:
     UDP(int verbose = -1);
-    ~UDP(){};
+    ~UDP() {};
 
     /**
      * @brief open_connection Open the connection the serial or network or interface
@@ -49,6 +52,117 @@ class UDP : public Client
     private:
     /* data */
     uint32_t m_size_addr;
+};
+
+/**
+ * @brief UDP Server class
+ *
+ * This class implements a UDP server derived from the Server base class.
+ * It manages receiving and sending datagrams and handles basic error logging.
+ */
+class UDPServer : public Server
+{
+    public:
+    UDPServer(int port, int max_connections = 10, int verbose = -1)
+        : Server(port, max_connections, verbose),
+          ESC::CLI(verbose, "UDP-Server")
+    {
+        logln("UDP Server created on port " + std::to_string(port), true);
+    }
+
+    ~UDPServer()
+    {
+        logln("UDP Server destroyed", true);
+        stop();
+    }
+
+    int send_data(const void *buffer, size_t size, void *addr) override
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        return sendto(m_fd, (const char *)buffer, size, 0,
+                      (SOCKADDR *)addr, sizeof(SOCKADDR));
+    }
+
+    protected:
+    void
+    listen_for_connections() override
+    {
+        m_fd = socket(AF_INET, SOCK_DGRAM, 0);
+        if(m_fd == INVALID_SOCKET)
+        {
+            throw log_error("Failed to create UDP socket");
+        }
+
+        // Set up the server address
+        SOCKADDR_IN server_addr;
+        memset(&server_addr, 0, sizeof(server_addr));
+        server_addr.sin_family = AF_INET;
+        server_addr.sin_addr.s_addr = INADDR_ANY;
+        server_addr.sin_port = htons(m_port);
+
+        // Bind the socket to the specified port
+        if(bind(m_fd, (SOCKADDR *)&server_addr, sizeof(server_addr)) ==
+           SOCKET_ERROR)
+        {
+            closesocket(m_fd);
+            throw log_error("Failed to bind UDP socket to port " +
+                            std::to_string(m_port));
+        }
+
+        // std::cout << "UDP Server is listening on port " << m_port << std::endl;
+        logln("UDP Server is listening on port " + std::to_string(m_port), true);
+
+        // Start receiving data in a separate thread
+        std::thread(&UDPServer::receive_data, this).detach();
+    }
+
+    void
+    handle_client(SOCKET client_socket) override
+    {
+        // No persistent connection in UDP, this is intentionally left blank.
+    }
+
+
+    private:
+    void
+    receive_data()
+    {
+        char buffer[1024];
+        SOCKADDR_IN client_addr;
+        socklen_t client_addr_len = sizeof(client_addr);
+
+        while(m_is_running)
+        {
+            // Receive a datagram from a client
+            int bytes_received =
+                recvfrom(m_fd, buffer, sizeof(buffer) - 1, 0,
+                         (SOCKADDR *)&client_addr, &client_addr_len);
+
+            if(bytes_received > 0)
+            {
+                buffer[bytes_received] =
+                    '\0'; // Null-terminate the received data
+                logln("Received from client: " + std::string(buffer), true);
+                logln("Client address: " +
+                          std::string(inet_ntoa(client_addr.sin_addr)),
+                      true);
+                if(m_callback != nullptr)
+                    m_callback(this,(uint8_t *)buffer, bytes_received,
+                               (void *)&client_addr, m_callback_data);
+                else
+                {
+                    // Echo the data back to the client
+                    sendto(m_fd, buffer, bytes_received, 0,
+                           (SOCKADDR *)&client_addr, client_addr_len);
+                }
+            }
+            else if(bytes_received == SOCKET_ERROR)
+            {
+                std::cerr << "Error receiving data: " << strerror(errno)
+                          << std::endl;
+            }
+        }
+    }
 };
 
 } // namespace Communication

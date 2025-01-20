@@ -6,9 +6,9 @@
 #include <stdexcept>
 
 #ifdef WIN32 //////////// IF WINDOWS OS //////////
-#include <winsock2.h>
-#include <windows.h>
 #include <commctrl.h>
+#include <windows.h>
+#include <winsock2.h>
 #elif defined(linux) || defined(__APPLE__) ///// IF LINUX OS //////////
 #include <arpa/inet.h>
 #include <netdb.h> // gethostbyname
@@ -26,6 +26,9 @@
 #endif
 
 #include <strANSIseq.hpp>
+
+//server FIFO var for each client
+#include <unordered_set>
 
 #define CRLF "\r\n"
 
@@ -155,52 +158,111 @@ class Client : virtual public ESC::CLI
     std::string m_id;
 };
 
-// class Server : virtual public ESC::CLI
-// {
-//     public:
-//     Server(int verbose = -1)
-//         : ESC::CLI(verbose - 1, "Client"), m_client(verbose)
-//     {
-//         SOCKADDR_IN sin = {0};
-//         SOCKADDR_IN csin = {0};
-//         SOCKET csock;
-//         int sinsize = sizeof csin;
-//         m_fd = socket(AF_INET, SOCK_STREAM, 0);
-//         if(m_fd == INVALID_SOCKET)
-//             throw log_error("socket() invalid");
+class Server : virtual public ESC::CLI
+{
+    public:
+    Server(int port, int max_connections = 10, int verbose = -1)
+        : m_port(port), m_max_connections(max_connections), m_is_running(false)
+    {
+    }
 
-//         sin.sin_addr.s_addr = htonl(INADDR_ANY);
-//         sin.sin_port = htons(5001);
-//         sin.sin_family = AF_INET;
+    virtual ~Server() { stop(); }
 
-//         int yes = 1;
-//         if(setsockopt(m_fd, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes)) == -1)
-//         {
-//             perror("setsockopt");
-//             exit(1);
-//         }
+    /**
+     * @brief Start the server and begin listening for connections.
+     */
+    virtual void
+    start()
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        if(m_is_running)
+        {
+            throw std::runtime_error("Server is already running");
+        }
+        m_is_running = true;
+        listen_for_connections();
+    }
 
-//         if(bind(m_fd, (SOCKADDR *)&sin, sizeof sin) == SOCKET_ERROR)
-//             throw log_error("bind()");
-//         if(listen(m_fd, 5) == SOCKET_ERROR)
-//             throw log_error("listen()");
-//         csock = accept(m_fd, (SOCKADDR *)&csin, (socklen_t *)&sinsize);
-//         if(csock == INVALID_SOCKET)
-//             throw log_error("accept()");
+    /**
+     * @brief Stop the server and close all connections.
+     */
+    virtual void
+    stop()
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_is_running = false;
+        closesocket(m_fd);
+        for(auto &client : m_clients) { closesocket(client); }
+        m_clients.clear();
+    }
 
-//         m_client.from_socket(csock);
-//     };
-//     ~Server()
-//     {
-//         close(m_fd);
-//         m_client.close_connection();
-//         std::cout << "closing socket" << std::endl;
-//     }
+    /**
+     * @brief Broadcast data to all connected clients.
+     * @param buffer Data buffer to send.
+     * @param size Size of the data buffer.
+     */
+    virtual void
+    broadcast(const void *buffer, size_t size)
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        for(auto &client : m_clients) { send(client, buffer, size, 0); }
+    }
 
-//     public:
-//     SOCKET m_fd;
-//     Client m_client;
-// };
+    virtual int 
+    send_data(const void *buffer, size_t size, void *addr) = 0;
+
+    /**
+     * @brief Check if the server is running.
+     * @return True if the server is running, false otherwise.
+     */
+    bool
+    is_running() const
+    {
+        return m_is_running;
+    }
+
+    /**
+     * @brief Set the callback function to be called when data is received.
+     * @param callback Callback function.
+     */
+    void set_callback(void (*callback)(Server *server, uint8_t *buffer, size_t size, void *addr, void *data), void *data=nullptr)
+    {
+        m_callback = callback;
+        m_callback_data = data;
+    }
+
+    std::unordered_set<SOCKET>& get_clients()
+    {
+        return m_clients;
+    }
+
+
+    protected:
+    /**
+     * @brief Listen for incoming connections (to be implemented by derived classes).
+     */
+    virtual void
+    listen_for_connections() = 0;
+
+    /**
+     * @brief Handle communication with a connected client (to be implemented by derived classes).
+     * @param client_socket Client's socket descriptor.
+     */
+    virtual void
+    handle_client(SOCKET client_socket) = 0;
+
+    SOCKET m_fd = INVALID_SOCKET;
+    int m_port;
+    int m_max_connections;
+    bool m_is_running;
+    std::mutex m_mutex;
+    std::unordered_set<SOCKET> m_clients;
+    //callback(this)
+    void (*m_callback)(Server *server, uint8_t *buffer, size_t size, void *addr, void *data)=nullptr;
+    void *m_callback_data;
+
+
+};
 
 } // namespace Communication
 
