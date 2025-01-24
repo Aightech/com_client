@@ -76,12 +76,51 @@ class UDPServer : public Server
         stop();
     }
 
-    int send_data(const void *buffer, size_t size, void *addr) override
+    int
+    send_data(const void *buffer, size_t size, void *addr) override
     {
         std::lock_guard<std::mutex> lock(m_mutex);
-        return sendto(m_fd, (const char *)buffer, size, 0,
-                      (SOCKADDR *)addr, sizeof(SOCKADDR));
+        return sendto(m_fd, (const char *)buffer, size, 0, (SOCKADDR *)addr,
+                      sizeof(SOCKADDR));
     }
+
+    void broadcast(const void *buffer, size_t size) override
+    {
+        //create a temporary socket to broadcast the data
+        SOCKET broadcast_socket = socket(AF_INET, SOCK_DGRAM, 0);
+        if(broadcast_socket == INVALID_SOCKET)
+        {
+            throw log_error("Failed to create broadcast socket");
+        }
+
+        // Enable broadcast
+        int broadcast_enable = 1;
+        if(setsockopt(broadcast_socket, SOL_SOCKET, SO_BROADCAST,
+                      (const char *)&broadcast_enable,
+                      sizeof(broadcast_enable)) == SOCKET_ERROR)
+        {
+            closesocket(broadcast_socket);
+            throw log_error("Failed to enable broadcast on socket");
+        }
+
+        // Set up the broadcast address
+        SOCKADDR_IN broadcast_addr;
+        memset(&broadcast_addr, 0, sizeof(broadcast_addr));
+        broadcast_addr.sin_family = AF_INET;
+        broadcast_addr.sin_addr.s_addr = INADDR_BROADCAST;
+        broadcast_addr.sin_port = htons(m_port);
+
+        // Broadcast the data to all clients
+        if(sendto(broadcast_socket, (const char *)buffer, size, 0,
+                  (SOCKADDR *)&broadcast_addr, sizeof(broadcast_addr)) ==
+           SOCKET_ERROR)
+        {
+            closesocket(broadcast_socket);
+            throw log_error("Failed to broadcast data");
+        }
+
+        closesocket(broadcast_socket);
+    };
 
     protected:
     void
@@ -110,7 +149,8 @@ class UDPServer : public Server
         }
 
         // std::cout << "UDP Server is listening on port " << m_port << std::endl;
-        logln("UDP Server is listening on port " + std::to_string(m_port), true);
+        logln("UDP Server is listening on port " + std::to_string(m_port),
+              true);
 
         // Start receiving data in a separate thread
         std::thread(&UDPServer::receive_data, this).detach();
@@ -121,7 +161,6 @@ class UDPServer : public Server
     {
         // No persistent connection in UDP, this is intentionally left blank.
     }
-
 
     private:
     void
@@ -147,7 +186,7 @@ class UDPServer : public Server
                           std::string(inet_ntoa(client_addr.sin_addr)),
                       true);
                 if(m_callback != nullptr)
-                    m_callback(this,(uint8_t *)buffer, bytes_received,
+                    m_callback(this, (uint8_t *)buffer, bytes_received,
                                (void *)&client_addr, m_callback_data);
                 else
                 {
