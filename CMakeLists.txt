@@ -210,39 +210,45 @@ else()
   )
 
   if(BUILD_PYTHON)
-    #check if pybind11 submodule is initialized/updated (if the folder is empty)
-    # Add pybind11 subdirectory
-    add_subdirectory(extern/pybind11)
-    include_directories(${pybind11_INCLUDE_DIRS})
+    # check if there is an extern folder and if pybind11 is present
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/extern/pybind11")
+      #check if pybind11 submodule is initialized/updated (if the folder is empty)
+      # Add pybind11 subdirectory
+      add_subdirectory(extern/pybind11)
+      include_directories(${pybind11_INCLUDE_DIRS})
 
-    # Find Python 3 libraries and development headers
-    find_package(Python3 REQUIRED COMPONENTS Development)
+      # Find Python 3 libraries and development headers
+      find_package(Python3 REQUIRED COMPONENTS Development)
 
-    #test if the python is found
-    if(NOT Python3_FOUND)
-      message(FATAL_ERROR "Python 3 is required to build the python wrapper")
+      #test if the python is found
+      if(NOT Python3_FOUND)
+        message(FATAL_ERROR "Python 3 is required to build the python wrapper")
+      endif()
+      ###### LIBRARY NAME ######
+      set(PYTHON_LIB_NAME pyclvhd)
+
+      # Add pybind11 module
+      pybind11_add_module(${PYTHON_LIB_NAME} ${LIB_SRCS_PY})
+
+      # Link the necessary libraries
+      target_link_libraries(${PYTHON_LIB_NAME}
+        PUBLIC ${LIB_NAME}
+        PRIVATE Python3::Python
+      )
+      target_include_directories(${PYTHON_LIB_NAME} # 
+        PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include"
+      )
+      #copy the resulting .so file to the script folder
+      add_custom_command(TARGET ${PYTHON_LIB_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${PYTHON_LIB_NAME}> ${CMAKE_CURRENT_SOURCE_DIR}/script/${PYTHON_LIB_NAME}.so
+        #add so in bin/ with os specific name
+        COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${PYTHON_LIB_NAME}> ${CMAKE_CURRENT_SOURCE_DIR}/bin/
+        COMMAND ${CMAKE_COMMAND} -E echo "       Python wrapper built in ${CMAKE_CURRENT_SOURCE_DIR}/scripts/"
+      )
+    else()
+      # say that its ok but we can't build the python wrapper
+      message("${PREFIX_MSG}-- ${ColourBold}${Esc}[${color_code}m${EXEC_NAME}${ColourReset}: Cannot build the python wrapper for this project")
     endif()
-    ###### LIBRARY NAME ######
-    set(PYTHON_LIB_NAME pyclvhd)
-
-    # Add pybind11 module
-    pybind11_add_module(${PYTHON_LIB_NAME} ${LIB_SRCS_PY})
-
-    # Link the necessary libraries
-    target_link_libraries(${PYTHON_LIB_NAME}
-      PUBLIC ${LIB_NAME}
-      PRIVATE Python3::Python
-    )
-    target_include_directories(${PYTHON_LIB_NAME} # 
-      PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include"
-    )
-    #copy the resulting .so file to the script folder
-    add_custom_command(TARGET ${PYTHON_LIB_NAME} POST_BUILD
-      COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${PYTHON_LIB_NAME}> ${CMAKE_CURRENT_SOURCE_DIR}/script/${PYTHON_LIB_NAME}.so
-      #add so in bin/ with os specific name
-      COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${PYTHON_LIB_NAME}> ${CMAKE_CURRENT_SOURCE_DIR}/bin/
-      COMMAND ${CMAKE_COMMAND} -E echo "       Python wrapper built in ${CMAKE_CURRENT_SOURCE_DIR}/scripts/"
-    )
   endif()
 
 
