@@ -190,10 +190,14 @@ class Server : virtual public ESC::CLI
     stop()
     {
         std::lock_guard<std::mutex> lock(m_mutex);
+        if(!m_is_running)
+            return;
+
         m_is_running = false;
+        logln("Server stopped", true);
         closesocket(m_fd);
-        for(auto &client : m_clients) { closesocket(client); }
-        m_clients.clear();
+        logln("Server socket closed", true);
+        m_fd = INVALID_SOCKET;
     }
 
     /**
@@ -208,8 +212,8 @@ class Server : virtual public ESC::CLI
         for(auto &client : m_clients) { send(client, buffer, size, 0); }
     }
 
-    virtual int 
-    send_data(const void *buffer, size_t size, void *addr) = 0;
+    virtual int
+    send_data(const void *buffer, size_t size, void *addr = nullptr) = 0;
 
     /**
      * @brief Check if the server is running.
@@ -225,17 +229,34 @@ class Server : virtual public ESC::CLI
      * @brief Set the callback function to be called when data is received.
      * @param callback Callback function.
      */
-    void set_callback(void (*callback)(Server *server, uint8_t *buffer, size_t size, void *addr, void *data), void *data=nullptr)
+    void
+    set_callback(void (*callback)(Server *server,
+                                  uint8_t *buffer,
+                                  size_t size,
+                                  void *addr,
+                                  void *data),
+                 void *data = nullptr)
     {
         m_callback = callback;
         m_callback_data = data;
     }
 
-    std::unordered_set<SOCKET>& get_clients()
+    void
+    set_callback_newClient(void (*callback)(Server *server,
+                                            void *addr,
+                                            SOCKET client_socket,
+                                            void *data),
+                           void *data = nullptr)
+    {
+        m_callback_newClient = callback;
+        m_callback_data_newClient = data;
+    }
+
+    std::unordered_set<SOCKET> &
+    get_clients()
     {
         return m_clients;
     }
-
 
     protected:
     /**
@@ -258,10 +279,17 @@ class Server : virtual public ESC::CLI
     std::mutex m_mutex;
     std::unordered_set<SOCKET> m_clients;
     //callback(this)
-    void (*m_callback)(Server *server, uint8_t *buffer, size_t size, void *addr, void *data)=nullptr;
+    void (*m_callback)(Server *server,
+                       uint8_t *buffer,
+                       size_t size,
+                       void *addr,
+                       void *data) = nullptr;
+    void (*m_callback_newClient)(Server *server,
+                                 void *addr,
+                                 SOCKET client_socket,
+                                 void *data) = nullptr;
     void *m_callback_data;
-
-
+    void *m_callback_data_newClient;
 };
 
 } // namespace Communication

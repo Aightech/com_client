@@ -2,10 +2,17 @@
 #define __UDP_CLIENT_HPP__
 
 #include "com_client.hpp"
+#include <algorithm> // for std::copy
 #include <cstring>
+#include <deque>
 #include <iostream>
 #include <thread>
+#include <unordered_map>
 #include <vector>
+
+#if defined(linux) || defined(__APPLE__)
+typedef struct in_addr IN_ADDR;
+#endif
 
 namespace Communication
 {
@@ -76,15 +83,29 @@ class UDPServer : public Server
         stop();
     }
 
+    void
+    stop()
+    {
+        if(!m_is_running)
+            return;
+        m_is_running = false;
+        logln("Waiting for receive thread to join", true);
+        if(m_receive_thread.joinable())
+            m_receive_thread.join();
+        logln("UDP Server stopped", true);
+        Server::stop();
+    }
+
     int
-    send_data(const void *buffer, size_t size, void *addr) override
+    send_data(const void *buffer, size_t size, void *addr = nullptr) override
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         return sendto(m_fd, (const char *)buffer, size, 0, (SOCKADDR *)addr,
                       sizeof(SOCKADDR));
     }
 
-    void broadcast(const void *buffer, size_t size) override
+    void
+    broadcast(const void *buffer, size_t size) override
     {
         //create a temporary socket to broadcast the data
         SOCKET broadcast_socket = socket(AF_INET, SOCK_DGRAM, 0);
@@ -112,8 +133,8 @@ class UDPServer : public Server
 
         // Broadcast the data to all clients
         if(sendto(broadcast_socket, (const char *)buffer, size, 0,
-                  (SOCKADDR *)&broadcast_addr, sizeof(broadcast_addr)) ==
-           SOCKET_ERROR)
+                  (SOCKADDR *)&broadcast_addr,
+                  sizeof(broadcast_addr)) == SOCKET_ERROR)
         {
             closesocket(broadcast_socket);
             throw log_error("Failed to broadcast data");
@@ -153,7 +174,8 @@ class UDPServer : public Server
               true);
 
         // Start receiving data in a separate thread
-        std::thread(&UDPServer::receive_data, this).detach();
+        // std::thread(&UDPServer::receive_data, this).detach();
+        m_receive_thread = std::thread(&UDPServer::receive_data, this);
     }
 
     void
@@ -163,42 +185,84 @@ class UDPServer : public Server
     }
 
     private:
+    std::unordered_map<uint32_t, std::deque<uint8_t>> m_fifos;
+    std::thread m_receive_thread;
     void
     receive_data()
     {
+        // Set socket to non-blocking
+#ifdef _WIN32
+        u_long mode = 1;
+        ioctlsocket(m_fd, FIONBIO, &mode);
+#else
+        int flags = fcntl(m_fd, F_GETFL, 0);
+        fcntl(m_fd, F_SETFL, flags | O_NONBLOCK);
+#endif
+
         char buffer[1024];
         SOCKADDR_IN client_addr;
         socklen_t client_addr_len = sizeof(client_addr);
 
         while(m_is_running)
         {
-            // Receive a datagram from a client
-            int bytes_received =
-                recvfrom(m_fd, buffer, sizeof(buffer) - 1, 0,
-                         (SOCKADDR *)&client_addr, &client_addr_len);
+            int bytes_received = recvfrom(
+                m_fd, buffer, sizeof(buffer) - 1, 0,
+                reinterpret_cast<SOCKADDR *>(&client_addr), &client_addr_len);
 
             if(bytes_received > 0)
             {
-                buffer[bytes_received] =
-                    '\0'; // Null-terminate the received data
-                logln("Received from client: " + std::string(buffer), true);
-                logln("Client address: " +
+                buffer[bytes_received] = '\0'; // Null-terminate
+                auto addr_key = client_addr.sin_addr.s_addr;
+                if(m_fifos.find(addr_key) == m_fifos.end())
+                {
+                    m_fifos[addr_key] = std::deque<uint8_t>();
+                }
+                m_fifos[addr_key].insert(m_fifos[addr_key].end(), buffer,
+                                         buffer + bytes_received);
+
+                logln("size deq: " + std::to_string(m_fifos[addr_key].size()),
+                      true);
+                logln("Received [" + std::to_string(bytes_received) +
+                          " bytes] from " +
                           std::string(inet_ntoa(client_addr.sin_addr)),
                       true);
+
                 if(m_callback != nullptr)
-                    m_callback(this, (uint8_t *)buffer, bytes_received,
-                               (void *)&client_addr, m_callback_data);
+                {
+                    m_callback(this, reinterpret_cast<uint8_t *>(buffer),
+                               bytes_received,
+                               reinterpret_cast<void *>(&client_addr),
+                               m_callback_data);
+                }
                 else
                 {
-                    // Echo the data back to the client
+                    // Echo the data back
                     sendto(m_fd, buffer, bytes_received, 0,
-                           (SOCKADDR *)&client_addr, client_addr_len);
+                           reinterpret_cast<SOCKADDR *>(&client_addr),
+                           client_addr_len);
                 }
             }
             else if(bytes_received == SOCKET_ERROR)
             {
+#ifdef _WIN32
+                int err = WSAGetLastError();
+                if(err == WSAEWOULDBLOCK)
+                {
+                    // No data available, avoid busy looping
+                    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+                    continue;
+                }
+                std::cerr << "Error receiving data: " << err << std::endl;
+#else
+                if(errno == EWOULDBLOCK || errno == EAGAIN)
+                {
+                    // No data available, avoid busy looping
+                    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+                    continue;
+                }
                 std::cerr << "Error receiving data: " << strerror(errno)
                           << std::endl;
+#endif
             }
         }
     }
