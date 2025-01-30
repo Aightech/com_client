@@ -198,18 +198,30 @@ else()
   set(LIB_SRCS_PY ${LIB_SRCS})
 
   #remove the python files from the list
-  list(FILTER LIB_SRCS EXCLUDE REGEX ".*py.*")
-
-
+  list(FILTER LIB_SRCS EXCLUDE REGEX "_py.*")
+  
   ###### Create the library ######
   add_library(${LIB_NAME} SHARED ${LIB_SRCS})
+  
   target_link_libraries(${LIB_NAME}
     PUBLIC ${EXTRA_LIBS})
   target_include_directories(${LIB_NAME}
-    PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include"
+    PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   )
+  target_compile_options(${LIB_NAME} PRIVATE -Wall -Wextra -Wpedantic -Werror)
 
-  if(BUILD_PYTHON)
+  #check if there are _py.* files in the src folder 
+  set(IS_PYTHON 0)
+  foreach(file ${LIB_SRCS_PY})
+    string(FIND "${file}" "_py" FOUND)
+    if(${FOUND} GREATER -1)
+      set(IS_PYTHON 1)
+      message("${PREFIX_MSG}-- ${ColourBold}${Esc}[${color_code}m${EXEC_NAME}${ColourReset}: Python wrapper found: ${ColourBold}${Esc}[${Green}${file}${ColourReset}")
+      # break()
+    endif()
+  endforeach()
+
+  if(BUILD_PYTHON AND IS_PYTHON)
     # check if there is an extern folder and if pybind11 is present
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/extern/pybind11")
       #check if pybind11 submodule is initialized/updated (if the folder is empty)
@@ -236,7 +248,7 @@ else()
         PRIVATE Python3::Python
       )
       target_include_directories(${PYTHON_LIB_NAME} # 
-        PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include"
+        PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include
       )
       #copy the resulting .so file to the script folder
       add_custom_command(TARGET ${PYTHON_LIB_NAME} POST_BUILD
@@ -247,7 +259,7 @@ else()
       )
     else()
       # say that its ok but we can't build the python wrapper
-      message("${PREFIX_MSG}-- ${ColourBold}${Esc}[${color_code}m${EXEC_NAME}${ColourReset}: Cannot build the python wrapper for this project")
+      message("${PREFIX_MSG}-- ${ColourBold}${Esc}[${color_code}m${EXEC_NAME}${ColourReset}: ${ColourBold}${Red}pybind11${ColourReset} not found in extern folder")
     endif()
   endif()
 
@@ -266,9 +278,53 @@ else()
         PUBLIC ${LIB_NAME}
         PUBLIC ${TOOL_LIBS})
       target_include_directories(${EXEC_NAME}
-        PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
+        PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
     endforeach()
   endif()
+
+
+  ###### Create package ######
+  # Install the library
+  install(TARGETS ${LIB_NAME}
+    EXPORT ${LIB_NAME} 
+    LIBRARY DESTINATION lib
+    ARCHIVE DESTINATION lib
+    RUNTIME DESTINATION bin
+  )
+
+  # Install the headers
+  install(DIRECTORY include/ DESTINATION include)
+
+  # Export the targets to a script
+  install(EXPORT ${LIB_NAME}
+    FILE ${EXEC_NAME}Config.cmake
+    NAMESPACE ${EXEC_NAME}::
+    DESTINATION lib/cmake/${EXEC_NAME}
+  )
+
+  include(CMakePackageConfigHelpers)
+  # Create a ConfigVersion.cmake file
+  write_basic_package_version_file(
+    "${CMAKE_CURRENT_BINARY_DIR}/${EXEC_NAME}ConfigVersion.cmake"
+    VERSION ${PROJECT_VERSION}
+    COMPATIBILITY AnyNewerVersion  # AnyNewerVersion, SameMajorVersion, SameMinorVersion, ExactVersion
+  )
+
+  # Create a Config.cmake file
+  configure_package_config_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/Config.cmake.in" # input file
+    "${CMAKE_CURRENT_BINARY_DIR}/${EXEC_NAME}Config.cmake" # output file
+    INSTALL_DESTINATION lib/cmake/${EXEC_NAME}
+  ) 
+
+  # Install the Config.cmake file
+  install(FILES
+    "${CMAKE_CURRENT_BINARY_DIR}/${EXEC_NAME}Config.cmake"
+    "${CMAKE_CURRENT_BINARY_DIR}/${EXEC_NAME}ConfigVersion.cmake"
+    DESTINATION lib/cmake/${EXEC_NAME}
+  )
+
+
 
 endif()
 
