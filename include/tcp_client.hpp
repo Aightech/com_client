@@ -74,9 +74,11 @@ class TCPServer : public Server
         if(!m_is_running)
             return;
         m_is_running = false;
+        logln("Waiting for threads to join", true);
         for(auto &thread : m_threads)
             if(thread.second.joinable())
                 thread.second.join();
+        logln("Waiting for accept thread to join", true);
         if(m_accept_thread.joinable())
             m_accept_thread.join();
         // if(!m_is_running)
@@ -130,7 +132,6 @@ class TCPServer : public Server
             throw log_error("socket() invalid");
         }
 
-
         //set reuse address
         int enable = 1;
         if(setsockopt(m_fd, SOL_SOCKET, SO_REUSEADDR, (const char *)&enable,
@@ -149,42 +150,61 @@ class TCPServer : public Server
         if(bind(m_fd, (SOCKADDR *)&sin, sizeof(sin)) == SOCKET_ERROR)
         {
             //explain why it failed
-            switch (errno)
+            switch(errno)
             {
-                case EACCES:
-                logln("EACCES: The address is protected, or the socket is already bound to an address.", true);
+            case EACCES:
+                logln("EACCES: The address is protected, or the socket is "
+                      "already bound to an address.",
+                      true);
                 break;
-                case EADDRINUSE:
+            case EADDRINUSE:
                 logln("EADDRINUSE: The address is already in use.", true);
                 break;
-                case EBADF:
-                logln("EBADF: The socket is not a valid file descriptor.", true);
+            case EBADF:
+                logln("EBADF: The socket is not a valid file descriptor.",
+                      true);
                 break;
-                case EINVAL:
-                logln("EINVAL: The socket is already bound to an address.", true);
+            case EINVAL:
+                logln("EINVAL: The socket is already bound to an address.",
+                      true);
                 break;
-                case ENOTSOCK:
-                logln("ENOTSOCK: The socket argument does not refer to a socket.", true);
+            case ENOTSOCK:
+                logln(
+                    "ENOTSOCK: The socket argument does not refer to a socket.",
+                    true);
                 break;
-                case EADDRNOTAVAIL:
-                logln("EADDRNOTAVAIL: The specified address is not available from the local machine.", true);
+            case EADDRNOTAVAIL:
+                logln("EADDRNOTAVAIL: The specified address is not available "
+                      "from the local machine.",
+                      true);
                 break;
-                case EAFNOSUPPORT:
-                logln("EAFNOSUPPORT: The specified address is not a valid address for the address family of the specified socket.", true);
+            case EAFNOSUPPORT:
+                logln("EAFNOSUPPORT: The specified address is not a valid "
+                      "address for the address family of the specified socket.",
+                      true);
                 break;
-                case EFAULT:
-                logln("EFAULT: The address parameter is not in a writable part of the user address space.", true);
+            case EFAULT:
+                logln("EFAULT: The address parameter is not in a writable part "
+                      "of the user address space.",
+                      true);
                 break;
-                case ELOOP:
-                logln("ELOOP: Too many symbolic links were encountered in resolving the address.", true);
+            case ELOOP:
+                logln("ELOOP: Too many symbolic links were encountered in "
+                      "resolving the address.",
+                      true);
                 break;
-                case ENAMETOOLONG:
-                logln("ENAMETOOLONG: The pathname resolution of a symbolic link produced an intermediate result whose length exceeds {PATH_MAX}.", true);
+            case ENAMETOOLONG:
+                logln("ENAMETOOLONG: The pathname resolution of a symbolic "
+                      "link produced an intermediate result whose length "
+                      "exceeds {PATH_MAX}.",
+                      true);
                 break;
-                case ENOENT:
-                logln("ENOENT: A component of the pathname does not exist, or the pathname is an empty string.", true);
+            case ENOENT:
+                logln("ENOENT: A component of the pathname does not exist, or "
+                      "the pathname is an empty string.",
+                      true);
                 break;
-                default:
+            default:
                 logln("Unknown error: " + std::to_string(errno), true);
                 break;
             }
@@ -212,24 +232,37 @@ class TCPServer : public Server
     void
     handle_client(SOCKET client_socket) override
     {
+        // Set client socket to non-blocking
+#ifdef _WIN32
+        u_long mode = 1;
+        ioctlsocket(client_socket, FIONBIO, &mode);
+#else
+        int flags = fcntl(client_socket, F_GETFL, 0);
+        fcntl(client_socket, F_SETFL, flags | O_NONBLOCK);
+#endif
+
         char buffer[1024];
         while(m_is_running)
         {
             int bytes_received = recv(client_socket, buffer, sizeof(buffer), 0);
+
             if(bytes_received > 0)
             {
                 m_fifos[client_socket].insert(m_fifos[client_socket].end(),
                                               buffer, buffer + bytes_received);
+
                 logln("Socket " + std::to_string(client_socket) +
                           " received [" + std::to_string(bytes_received) +
                           " bytes], size fifo: " +
-                            std::to_string(m_fifos[client_socket].size()),
-                        true);
-                      
+                          std::to_string(m_fifos[client_socket].size()),
+                      true);
+
                 if(m_callback)
                 {
-                    m_callback(this, (uint8_t *)buffer, bytes_received,
-                               (void *)&client_socket, m_callback_data);
+                    m_callback(this, reinterpret_cast<uint8_t *>(buffer),
+                               bytes_received,
+                               reinterpret_cast<void *>(&client_socket),
+                               m_callback_data);
                 }
             }
             else if(bytes_received == 0)
@@ -239,13 +272,31 @@ class TCPServer : public Server
             }
             else
             {
-                std::cerr << "Error receiving data." << std::endl;
+#ifdef _WIN32
+                int err = WSAGetLastError();
+                if(err == WSAEWOULDBLOCK)
+                {
+                    // No data available, avoid busy looping
+                    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+                    continue;
+                }
+                std::cerr << "Error receiving data: " << err << std::endl;
+#else
+                if(errno == EWOULDBLOCK || errno == EAGAIN)
+                {
+                    // No data available, avoid busy looping
+                    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                    continue;
+                }
+                std::cerr << "Error receiving data: " << strerror(errno)
+                          << std::endl;
+#endif
                 break;
             }
         }
 
         closesocket(client_socket);
-        //remove the SOCKET from the vector
+        // Remove the socket from your containers if necessary
     }
 
     private:
