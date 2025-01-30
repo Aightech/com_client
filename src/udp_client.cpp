@@ -5,11 +5,12 @@ namespace Communication
 
 using namespace ESC;
 
-UDP::UDP(int verbose) : Client(verbose), ESC::CLI(verbose, "UDP-Client") {}
+UDP::UDP(int verbose) : ESC::CLI(verbose, "UDP-Client") , Client(verbose){}
 
 int
 UDP::open_connection(const char *address, int port, int timeout)
 {
+    (void)timeout;
 #ifdef __linux__
     struct hostent *hostinfo;
     cli_id() += ((cli_id() == "") ? "" : " - ") +
@@ -39,10 +40,10 @@ UDP::readS(uint8_t *buffer, size_t size, bool has_crc, bool read_until)
 {
     std::lock_guard<std::mutex> lck(*m_mutex); //ensure only one thread using it
 #ifdef __linux__
-    int n = recvfrom(m_fd, buffer, size, MSG_WAITALL, (SOCKADDR *)&m_addr_to,
+    ssize_t n = recvfrom(m_fd, buffer, size, MSG_WAITALL, (SOCKADDR *)&m_addr_to,
                      &m_size_addr);
-    if(n != size && read_until)
-        while(n != size)
+    if((size_t)n != size && read_until)
+        while((size_t)n != size)
             n += recvfrom(m_fd, buffer + n, size - n, MSG_WAITALL,
                           (SOCKADDR *)&m_addr_to, &m_size_addr);
 

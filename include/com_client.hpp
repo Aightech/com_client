@@ -125,7 +125,8 @@ class Client : virtual public ESC::CLI
     void
     get_stat(char c = 'd', int pkgSize = 6)
     {
-        uint8_t buf[pkgSize];
+        // uint8_t buf[pkgSize];
+        uint8_t* buf = new uint8_t[pkgSize];
         buf[0] = c;
         this->writeS(buf, pkgSize);
         float vals[4];
@@ -135,6 +136,7 @@ class Client : virtual public ESC::CLI
         std::cout << "std: " << sqrt(vals[1] - vals[0] * vals[0]) << std::endl;
         std::cout << "n: " << vals[2] << std::endl;
         std::cout << "max: " << vals[3] << std::endl;
+        delete[] buf;
     }
 
     private:
@@ -154,7 +156,7 @@ class Client : virtual public ESC::CLI
     SOCKET m_fd;
     bool m_is_connected = false;
     std::mutex *m_mutex;
-    SOCKADDR_IN m_addr_to = {0};
+    SOCKADDR_IN m_addr_to;
     std::string m_id;
 };
 
@@ -162,7 +164,7 @@ class Server : virtual public ESC::CLI
 {
     public:
     Server(int port, int max_connections = 10, int verbose = -1)
-        : m_port(port), m_max_connections(max_connections), m_is_running(false)
+        : ESC::CLI(verbose, "Server"), m_port(port), m_max_connections(max_connections), m_is_running(false)
     {
     }
 
@@ -212,8 +214,11 @@ class Server : virtual public ESC::CLI
         for(auto &client : m_clients) { send(client, buffer, size, 0); }
     }
 
-    virtual int
-    send_data(const void *buffer, size_t size, void *addr = nullptr) = 0;
+    // virtual int
+    // send_data(const void *buffer, size_t size, void *addr = nullptr){};
+
+    // virtual int
+    // send_data(const void *buffer, size_t size, SOCKET s){};
 
     /**
      * @brief Check if the server is running.

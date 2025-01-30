@@ -19,7 +19,7 @@ namespace Communication
 using namespace ESC;
 
 Serial::Serial(int verbose)
-    : Client(verbose), ESC::CLI(verbose, "Serial-Client")
+    :  ESC::CLI(verbose, "Serial-Client"), Client(verbose)
 {
 }
 
@@ -254,9 +254,9 @@ Serial::readS(uint8_t *buffer, size_t size, bool has_crc, bool read_until)
     if(m_is_connected)
     {
 #if defined(__linux__) || defined(__APPLE__)
-        int n = read(m_fd, buffer, size);
-        if(n != size && read_until)
-            while(n != size) n += read(m_fd, buffer + n, size - n);
+        ssize_t n = read(m_fd, buffer, size);
+        if((size_t)n != size && read_until)
+            while((size_t)n != size) n += read(m_fd, buffer + n, size - n);
 #elif _WIN32
         DWORD n = 0;
         if(!ReadFile((HANDLE)m_fd, buffer, size, &n, NULL))

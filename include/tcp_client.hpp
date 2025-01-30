@@ -60,8 +60,9 @@ class TCPServer : public Server
 {
     public:
     TCPServer(int port, int max_connections = 10, int verbose = -1)
-        : Server(port, max_connections, verbose),
-          ESC::CLI(verbose, "TCP-Server")
+        : ESC::CLI(verbose, "TCP-Server"),
+          Server(port, max_connections, verbose)
+
     {
         logln("TCP Server created on port " + std::to_string(port), true);
     }
@@ -90,13 +91,12 @@ class TCPServer : public Server
     }
 
     int
-    send_data(const void *buffer, size_t size, void *addr = nullptr) override
+    send_data(const void *buffer, size_t size, SOCKET s)
     {
         std::lock_guard<std::mutex> lock(m_mutex);
-        SOCKADDR_IN *client_addr = (SOCKADDR_IN *)addr;
         for(auto &client : m_clients)
         {
-            if(client_addr == nullptr || client == client_addr->sin_addr.s_addr)
+            if(client == s)
             {
                 send(client, buffer, size, 0);
             }
@@ -142,7 +142,7 @@ class TCPServer : public Server
         }
 
         // Set up the server address
-        SOCKADDR_IN sin = {0};
+        SOCKADDR_IN sin = {0, 0, 0, 0};
         sin.sin_family = AF_INET;
         sin.sin_addr.s_addr = INADDR_ANY;
         sin.sin_port = htons(m_port);

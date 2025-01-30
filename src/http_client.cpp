@@ -3,7 +3,7 @@
 namespace Communication
 {
 
-HTTP::HTTP(int verbose) : TCP(verbose), ESC::CLI(verbose, "HTTP_client")
+HTTP::HTTP(int verbose) : ESC::CLI(verbose, "HTTP_client"), TCP(verbose)
 {
     strcpy(m_header_post, "POST %s HTTP/1.1\n"
                           "Host: %s\n"
@@ -25,7 +25,8 @@ HTTP::HTTP(int verbose) : TCP(verbose), ESC::CLI(verbose, "HTTP_client")
 std::string
 HTTP::get(const char *page, int n)
 {
-    char buffer[n];
+    // char buffer[n];
+    char *buffer = new char[n];
     snprintf(m_header, 2048, m_header_get, page, m_ip.c_str());
     writeS(m_header, strlen(m_header));
     bool read_until = true;
@@ -43,6 +44,7 @@ HTTP::get(const char *page, int n)
     d[size] = '\0';
     std::string s(d);
     //logln("Received [" + std::to_string(size) + " bytes] : " + s, true);
+    delete[] buffer;
     return d;
 };
 
@@ -66,7 +68,8 @@ HTTP::post(const char *page, const char *content, int n)
         n = 2048;
         read_until = false;
     }
-    char buffer[n];
+    // char buffer[n];
+    char *buffer = new char[n];
     n = readS((uint8_t *)buffer, n, false,
               read_until); //if n <0 then don't "read until"
 
@@ -98,6 +101,7 @@ HTTP::post(const char *page, const char *content, int n)
     c[size] = '\0';
     std::string s(c);
     logln(ESC::fstr("OK ", {ESC::FG_GREEN, ESC::BOLD}), true);
+    delete[] buffer;
     return c;
 };
 

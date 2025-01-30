@@ -30,7 +30,7 @@ class UDP : public Client
      * @return
      */
     int
-    open_connection(const char *path, int port, int timeout);
+    open_connection(const char *path, int port, int timeout) override;
 
     /**
      * @brief readS read the com inmterface.
@@ -71,8 +71,9 @@ class UDPServer : public Server
 {
     public:
     UDPServer(int port, int max_connections = 10, int verbose = -1)
-        : Server(port, max_connections, verbose),
-          ESC::CLI(verbose, "UDP-Server")
+        : ESC::CLI(verbose, "UDP-Server"),
+        Server(port, max_connections, verbose)
+          
     {
         logln("UDP Server created on port " + std::to_string(port), true);
     }
@@ -97,7 +98,7 @@ class UDPServer : public Server
     }
 
     int
-    send_data(const void *buffer, size_t size, void *addr = nullptr) override
+    send_data(const void *buffer, size_t size, void *addr = nullptr) 
     {
         std::lock_guard<std::mutex> lock(m_mutex);
         return sendto(m_fd, (const char *)buffer, size, 0, (SOCKADDR *)addr,
@@ -181,6 +182,7 @@ class UDPServer : public Server
     void
     handle_client(SOCKET client_socket) override
     {
+        (void)client_socket;
         // No persistent connection in UDP, this is intentionally left blank.
     }
 

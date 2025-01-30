@@ -124,6 +124,10 @@ Client::mk_crctable(uint16_t genpoly)
         }
         return true;
     }();
+    if(once)
+        logln("CRC table created", true);
+    else
+        logln("CRC table already created", true);
 }
 
 } // namespace Communication

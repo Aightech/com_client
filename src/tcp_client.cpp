@@ -5,16 +5,16 @@ namespace Communication
 
 using namespace ESC;
 
-TCP::TCP(int verbose) : Client(verbose), ESC::CLI(verbose, "TCP-Client") {}
+TCP::TCP(int verbose) : ESC::CLI(verbose, "TCP-Client"), Client(verbose) {}
 
 int
 TCP::open_connection(const char *address, int port, int timeout)
 {
     m_ip = address;
-    SOCKADDR_IN sin = {0};
+    SOCKADDR_IN sin = {0,0,0,0};
 #ifdef __linux__
     struct hostent *hostinfo;
-    TIMEVAL tv = {.tv_sec = timeout, .tv_usec = 0};
+    TIMEVAL tv = {0,0};
     int res;
     set_cli_id(cli_id() + ((cli_id() == "") ? "" : " - ") +
                fstr_link(std::string(address) + ":" + std::to_string(port)));
@@ -113,9 +113,9 @@ TCP::readS(uint8_t *buffer, size_t size, bool has_crc, bool read_until)
     if(m_is_connected)
     {
 #if defined(__linux__) || defined(__APPLE__)
-        int n = recv(m_fd, buffer, size, 0);
-        if(n != size && read_until)
-            while(n != size) n += recv(m_fd, buffer + n, size - n, 0);
+        ssize_t n = recv(m_fd, buffer, size, 0);
+        if((size_t)n != size && read_until)
+            while((size_t)n != size) n += recv(m_fd, buffer + n, size - n, 0);
 #elif _WIN32
         DWORD n = 0;
         if(!ReadFile((HANDLE)m_fd, buffer, size, &n, NULL))
