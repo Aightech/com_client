@@ -16,6 +16,8 @@
 !/docs/*
 !/fig
 !/fig/*
+!/config
+!/config/*
 !/models
 !/models/*
 !.gitmodules
