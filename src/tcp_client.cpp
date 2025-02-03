@@ -14,7 +14,7 @@ TCP::open_connection(const char *address, int port, int timeout)
     SOCKADDR_IN sin = {0,0,0,0};
 #ifdef __linux__
     struct hostent *hostinfo;
-    TIMEVAL tv = {0,0};
+    TIMEVAL tv = {timeout,0};
     int res;
     set_cli_id(cli_id() + ((cli_id() == "") ? "" : " - ") +
                fstr_link(std::string(address) + ":" + std::to_string(port)));
@@ -67,7 +67,7 @@ TCP::open_connection(const char *address, int port, int timeout)
             throw log_error(" Error retrieving socket options");
         if(opt) // there was an error
             throw log_error(std::strerror(opt));
-        logln(fstr("connected", {BOLD, FG_GREEN}));
+        logln(fstr("connected", {BOLD, FG_GREEN}),true);
         m_is_connected = true;
     }
     else
