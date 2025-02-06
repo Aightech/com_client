@@ -104,11 +104,23 @@ class TCPServer : public Server
         return 0;
     }
     int8_t
-    read_byte(SOCKET i, uint8_t *buffer, size_t size)
+    read_byte(SOCKET i, uint8_t *buffer, size_t size, bool blocking = false)
     {
         if(m_clients.find(i) == m_clients.end())
             return -1;
-        size = std::min(size, m_fifos[i].size());
+        if(blocking) 
+        {
+            while(size>m_fifos[i].size())
+            {
+                //wait 1ms
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            }
+        }
+        else
+        {
+            size = std::min(size, m_fifos[i].size());
+        }
+        std::lock_guard<std::mutex> lock(m_mutexes[i]);
         std::copy(m_fifos[i].begin(), m_fifos[i].begin() + size, buffer);
         m_fifos[i].erase(m_fifos[i].begin(), m_fifos[i].begin() + size);
         return size;
@@ -117,6 +129,7 @@ class TCPServer : public Server
     int
     is_available(SOCKET i)
     {
+        std::lock_guard<std::mutex> lock(m_mutexes[i]);
         if(m_clients.find(i) == m_clients.end())
             return -1;
         return m_fifos[i].size();
@@ -226,7 +239,6 @@ class TCPServer : public Server
         // Accept incoming connections
         // std::thread(&TCPServer::accept_connections, this).detach();
         m_accept_thread = std::thread(&TCPServer::accept_connections, this);
-        // m_threads[m_fd] = std::thread(&TCPServer::accept_connections, this);
     }
 
     void
@@ -248,8 +260,12 @@ class TCPServer : public Server
 
             if(bytes_received > 0)
             {
+                //lock the mutex
+                m_mutexes[client_socket].lock();
                 m_fifos[client_socket].insert(m_fifos[client_socket].end(),
                                               buffer, buffer + bytes_received);
+                //release the mutex
+                m_mutexes[client_socket].unlock();
 
                 logln("Socket " + std::to_string(client_socket) +
                           " received [" + std::to_string(bytes_received) +
@@ -302,6 +318,7 @@ class TCPServer : public Server
     private:
     std::unordered_map<SOCKET, std::deque<uint8_t>> m_fifos;
     std::unordered_map<SOCKET, std::thread> m_threads;
+    std::unordered_map<SOCKET, std::mutex> m_mutexes;
     std::thread m_accept_thread;
     void
     accept_connections()
@@ -362,6 +379,7 @@ class TCPServer : public Server
                                      client_socket, m_callback_data_newClient);
             }
 
+            m_mutexes[client_socket];//create a mutex for the client 
             m_threads[client_socket] =
                 std::thread(&TCPServer::handle_client, this, client_socket);
         }
