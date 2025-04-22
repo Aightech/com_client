@@ -5,7 +5,9 @@
 #include <algorithm> // for std::copy
 #include <cstring>
 #include <deque>
+#include <iomanip>
 #include <iostream>
+#include <netinet/tcp.h>
 #include <thread>
 #include <unordered_map>
 
@@ -69,6 +71,15 @@ class TCPServer : public Server
 
     ~TCPServer() { stop(); }
 
+    void disable_nagle(bool nagled=true)
+    {
+        m_nagled = nagled;
+    }
+    void disable_quickack(bool quickack=true)
+    {
+        m_quickack = quickack;
+    }
+
     void
     stop()
     {
@@ -104,25 +115,26 @@ class TCPServer : public Server
         return 0;
     }
     int8_t
-    read_byte(SOCKET i, uint8_t *buffer, size_t size, bool blocking = false)
+    read_byte(SOCKET i,
+              uint8_t *buffer,
+              size_t size,
+              bool blocking = false,
+              bool erase = true)
     {
         if(m_clients.find(i) == m_clients.end())
             return -1;
-        if(blocking) 
-        {
-            while(size>m_fifos[i].size())
-            {
-                //wait 1ms
-                std::this_thread::sleep_for(std::chrono::milliseconds(1));
-            }
-        }
-        else
-        {
+
+        while(blocking && size > m_fifos[i].size())
+            std::this_thread::sleep_for(
+                std::chrono::milliseconds(1)); //wait 1ms
+
+        if(size > m_fifos[i].size())
             size = std::min(size, m_fifos[i].size());
-        }
+
         std::lock_guard<std::mutex> lock(m_mutexes[i]);
         std::copy(m_fifos[i].begin(), m_fifos[i].begin() + size, buffer);
-        m_fifos[i].erase(m_fifos[i].begin(), m_fifos[i].begin() + size);
+        if(erase)
+            m_fifos[i].erase(m_fifos[i].begin(), m_fifos[i].begin() + size);
         return size;
     }
 
@@ -153,6 +165,17 @@ class TCPServer : public Server
             closesocket(m_fd);
             throw log_error("Failed to set socket option");
         }
+
+        int flag = m_nagled ? 1 : 0;
+        if(setsockopt(m_fd, IPPROTO_TCP, TCP_NODELAY, (char *)&flag,
+                      sizeof(int)) < 0)
+            throw log_error("Failed to set TCP_NODELAY [" +
+                            std::string(strerror(errno)) + "] on socket");
+        flag = m_quickack ? 1 : 0;
+        if(setsockopt(m_fd, IPPROTO_TCP, TCP_QUICKACK, (char *)&flag,
+                      sizeof(int)) < 0)
+            throw log_error("Failed to set TCP_QUICKACK [" +
+                            std::string(strerror(errno)) + "] on socket");
 
         // Set up the server address
         SOCKADDR_IN sin = {0, 0, 0, 0};
@@ -257,7 +280,6 @@ class TCPServer : public Server
         while(m_is_running)
         {
             int bytes_received = recv(client_socket, buffer, sizeof(buffer), 0);
-
             if(bytes_received > 0)
             {
                 //lock the mutex
@@ -320,6 +342,8 @@ class TCPServer : public Server
     std::unordered_map<SOCKET, std::thread> m_threads;
     std::unordered_map<SOCKET, std::mutex> m_mutexes;
     std::thread m_accept_thread;
+    bool m_nagled = false;
+    bool m_quickack = false;
     void
     accept_connections()
     {
@@ -363,7 +387,6 @@ class TCPServer : public Server
 #endif
                 break;
             }
-
             logln("Client connected from " +
                       std::string(inet_ntoa(client_addr.sin_addr)) + ":" +
                       std::to_string(ntohs(client_addr.sin_port)),
@@ -372,16 +395,15 @@ class TCPServer : public Server
             m_clients.insert(client_socket);
             m_fifos[client_socket] = std::deque<uint8_t>();
 
+            m_mutexes[client_socket]; //create a mutex for the client
+            m_threads[client_socket] =
+                std::thread(&TCPServer::handle_client, this, client_socket);
             if(m_callback_newClient)
             {
                 m_callback_newClient(this,
                                      reinterpret_cast<void *>(&client_addr),
                                      client_socket, m_callback_data_newClient);
             }
-
-            m_mutexes[client_socket];//create a mutex for the client 
-            m_threads[client_socket] =
-                std::thread(&TCPServer::handle_client, this, client_socket);
         }
     }
 };
