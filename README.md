@@ -33,3 +33,7 @@ to get the demonstration app usage.
 
 # Example
 Open the ![main.cpp](cpp:src/main.cpp) file to get an example how to use the lib.
+
+
+# CONTRIBUTING
+see [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduct, and the process for submitting pull requests to us.
