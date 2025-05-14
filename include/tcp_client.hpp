@@ -71,11 +71,13 @@ class TCPServer : public Server
 
     ~TCPServer() { stop(); }
 
-    void disable_nagle(bool nagled=true)
+    void
+    disable_nagle(bool nagled = true)
     {
         m_nagled = nagled;
     }
-    void disable_quickack(bool quickack=true)
+    void
+    disable_quickack(bool quickack = true)
     {
         m_quickack = quickack;
     }
@@ -104,16 +106,15 @@ class TCPServer : public Server
     int
     send_data(const void *buffer, size_t size, SOCKET s)
     {
-        std::lock_guard<std::mutex> lock(m_mutex);
         for(auto &client : m_clients)
-        {
             if(client == s)
             {
+                std::lock_guard<std::mutex> lock(m_mutexes[s]);
                 send(client, buffer, size, 0);
             }
-        }
         return 0;
     }
+
     int8_t
     read_byte(SOCKET i,
               uint8_t *buffer,
@@ -124,26 +125,47 @@ class TCPServer : public Server
         if(m_clients.find(i) == m_clients.end())
             return -1;
 
-        while(blocking && size > m_fifos[i].size())
-            std::this_thread::sleep_for(
-                std::chrono::milliseconds(1)); //wait 1ms
+        size_t n_available = 0;
+        {
+            std::lock_guard<std::mutex> lock(m_mutexes[i]);
+            n_available = m_fifos[i].size();
+        }
+        if(blocking && n_available < size)
+        {
+            do {
+                std::this_thread::sleep_for(
+                    std::chrono::milliseconds(1)); //wait 1ms
+                std::lock_guard<std::mutex> lock(m_mutexes[i]);
+                n_available = m_fifos[i].size();
+                if(n_available > size)
+                    break;
+            } while(n_available < size);
+        }
 
-        if(size > m_fifos[i].size())
-            size = std::min(size, m_fifos[i].size());
+        size = std::min(size, m_fifos[i].size());
 
-        std::lock_guard<std::mutex> lock(m_mutexes[i]);
-        std::copy(m_fifos[i].begin(), m_fifos[i].begin() + size, buffer);
-        if(erase)
-            m_fifos[i].erase(m_fifos[i].begin(), m_fifos[i].begin() + size);
+        {
+            std::lock_guard<std::mutex> lock(m_mutexes[i]);
+            std::copy(m_fifos[i].begin(), m_fifos[i].begin() + size, buffer);
+            if(erase)
+                m_fifos[i].erase(m_fifos[i].begin(), m_fifos[i].begin() + size);
+        }
         return size;
+    }
+
+    void
+    clear_fifo(SOCKET i)
+    {
+        std::lock_guard<std::mutex> lock(m_mutexes[i]);
+        m_fifos[i].clear();
     }
 
     int
     is_available(SOCKET i)
     {
-        std::lock_guard<std::mutex> lock(m_mutexes[i]);
         if(m_clients.find(i) == m_clients.end())
             return -1;
+        std::lock_guard<std::mutex> lock(m_mutexes[i]);
         return m_fifos[i].size();
     }
 
@@ -205,9 +227,9 @@ class TCPServer : public Server
                       true);
                 break;
             case ENOTSOCK:
-                logln(
-                    "ENOTSOCK: The socket argument does not refer to a socket.",
-                    true);
+                logln("ENOTSOCK: The socket argument does not refer to a "
+                      "socket.",
+                      true);
                 break;
             case EADDRNOTAVAIL:
                 logln("EADDRNOTAVAIL: The specified address is not available "
@@ -216,11 +238,13 @@ class TCPServer : public Server
                 break;
             case EAFNOSUPPORT:
                 logln("EAFNOSUPPORT: The specified address is not a valid "
-                      "address for the address family of the specified socket.",
+                      "address for the address family of the specified "
+                      "socket.",
                       true);
                 break;
             case EFAULT:
-                logln("EFAULT: The address parameter is not in a writable part "
+                logln("EFAULT: The address parameter is not in a writable "
+                      "part "
                       "of the user address space.",
                       true);
                 break;
@@ -236,7 +260,8 @@ class TCPServer : public Server
                       true);
                 break;
             case ENOENT:
-                logln("ENOENT: A component of the pathname does not exist, or "
+                logln("ENOENT: A component of the pathname does not exist, "
+                      "or "
                       "the pathname is an empty string.",
                       true);
                 break;
@@ -268,13 +293,13 @@ class TCPServer : public Server
     handle_client(SOCKET client_socket) override
     {
         // Set client socket to non-blocking
-#ifdef _WIN32
-        u_long mode = 1;
-        ioctlsocket(client_socket, FIONBIO, &mode);
-#else
-        int flags = fcntl(client_socket, F_GETFL, 0);
-        fcntl(client_socket, F_SETFL, flags | O_NONBLOCK);
-#endif
+        // #ifdef _WIN32
+        //         u_long mode = 1;
+        //         ioctlsocket(client_socket, FIONBIO, &mode);
+        // #else
+        //         int flags = fcntl(client_socket, F_GETFL, 0);
+        //         fcntl(client_socket, F_SETFL, flags | O_NONBLOCK);
+        // #endif
 
         char buffer[1024];
         while(m_is_running)
@@ -283,11 +308,12 @@ class TCPServer : public Server
             if(bytes_received > 0)
             {
                 //lock the mutex
-                m_mutexes[client_socket].lock();
-                m_fifos[client_socket].insert(m_fifos[client_socket].end(),
-                                              buffer, buffer + bytes_received);
-                //release the mutex
-                m_mutexes[client_socket].unlock();
+                {
+                    std::lock_guard<std::mutex> lock(m_mutexes[client_socket]);
+                    m_fifos[client_socket].insert(m_fifos[client_socket].end(),
+                                                  buffer,
+                                                  buffer + bytes_received);
+                }
 
                 logln("Socket " + std::to_string(client_socket) +
                           " received [" + std::to_string(bytes_received) +
@@ -323,6 +349,7 @@ class TCPServer : public Server
                 if(errno == EWOULDBLOCK || errno == EAGAIN)
                 {
                     // No data available, avoid busy looping
+                    logln("No data available, waiting...", true);
                     std::this_thread::sleep_for(std::chrono::milliseconds(1));
                     continue;
                 }

@@ -145,6 +145,7 @@ class UDPServer : public Server
     };
 
     protected:
+    std::mutex m_mutex;
     void
     listen_for_connections() override
     {

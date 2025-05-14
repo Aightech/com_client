@@ -10,6 +10,10 @@ This C++ library provides a unified interface for different types of communicati
 - CRC16 checksum calculation.
 - Control over the blocking/non-blocking nature of the socket.
 
+### Submodules dependencies
+#### libraries 
+- [strANSIseq](lib/strANSIseq/README.md)
+
 # Building source code
 
 To build the project run:

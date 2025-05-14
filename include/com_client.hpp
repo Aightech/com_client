@@ -126,7 +126,7 @@ class Client : virtual public ESC::CLI
     get_stat(char c = 'd', int pkgSize = 6)
     {
         // uint8_t buf[pkgSize];
-        uint8_t* buf = new uint8_t[pkgSize];
+        uint8_t *buf = new uint8_t[pkgSize];
         buf[0] = c;
         this->writeS(buf, pkgSize);
         float vals[4];
@@ -164,7 +164,8 @@ class Server : virtual public ESC::CLI
 {
     public:
     Server(int port, int max_connections = 10, int verbose = -1)
-        : ESC::CLI(verbose, "Server"), m_port(port), m_max_connections(max_connections), m_is_running(false)
+        : ESC::CLI(verbose, "Server"), m_port(port),
+          m_max_connections(max_connections), m_is_running(false)
     {
     }
 
@@ -176,7 +177,6 @@ class Server : virtual public ESC::CLI
     virtual void
     start()
     {
-        std::lock_guard<std::mutex> lock(m_mutex);
         if(m_is_running)
         {
             throw std::runtime_error("Server is already running");
@@ -191,7 +191,6 @@ class Server : virtual public ESC::CLI
     virtual void
     stop()
     {
-        std::lock_guard<std::mutex> lock(m_mutex);
         if(!m_is_running)
             return;
 
@@ -210,8 +209,8 @@ class Server : virtual public ESC::CLI
     virtual void
     broadcast(const void *buffer, size_t size)
     {
-        std::lock_guard<std::mutex> lock(m_mutex);
-        for(auto &client : m_clients) { send(client, buffer, size, 0); }
+        (void)buffer;
+        (void)size;
     }
 
     // virtual int
@@ -281,7 +280,6 @@ class Server : virtual public ESC::CLI
     int m_port;
     int m_max_connections;
     bool m_is_running;
-    std::mutex m_mutex;
     std::unordered_set<SOCKET> m_clients;
     //callback(this)
     void (*m_callback)(Server *server,
