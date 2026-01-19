@@ -67,6 +67,21 @@ include(cmake/ColorLogs.cmake)
 include(cmake/CMakeFunctions.cmake)
 
 
+###### Check submodules are initialized ######
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/lib")
+  file(GLOB LIB_SUBDIRS LIST_DIRECTORIES true "${CMAKE_CURRENT_SOURCE_DIR}/lib/*")
+  foreach(subdir ${LIB_SUBDIRS})
+    if(IS_DIRECTORY ${subdir} AND NOT EXISTS "${subdir}/CMakeLists.txt")
+      get_filename_component(subdir_name ${subdir} NAME)
+      message(FATAL_ERROR
+        "Submodule '${subdir_name}' not initialized.\n"
+        "Run: git submodule update --init --recursive\n"
+        "Or:  ./scripts/setup.sh")
+    endif()
+  endforeach()
+endif()
+
+
 ###### Check if the project is already built ######
 if(TARGET ${EXEC_NAME}) #check if the target is already built
   message("${PREFIX_MSG}-- ${ColourBold}${Esc}[${color_code}m${EXEC_NAME}${ColourReset} is already built")

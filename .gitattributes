@@ -1,0 +1,4 @@
+# Mark vendored dependencies for GitHub linguist
+# This excludes them from language statistics and diffs by default
+lib/** linguist-vendored
+tool_lib/** linguist-vendored

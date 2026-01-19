@@ -6,7 +6,7 @@ if(NOT DEFINED NO_CONNECTION)
       OUTPUT_QUIET
       RESULT_VARIABLE NO_CONNECTION
     )
-    if(NO_CONNECTION EQUAL 1)
+    if(NO_CONNECTION EQUAL 0)
       message(" ${Green}Online${ColourReset}")
     else()
       message(" ${Red}Offline${ColourReset}")

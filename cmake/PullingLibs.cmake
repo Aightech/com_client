@@ -8,8 +8,7 @@ foreach(subdir ${LIBS})
   #check if the library is a unused library
   set(IS_UNUSED 0)
   foreach(lib ${UNUSED_LIBS})
-    string(FIND "${lib}" "${subdir}" FOUND)
-    if(${FOUND} GREATER -1)
+    if("${lib}" STREQUAL "${subdir}")
       set(IS_UNUSED 1)
     endif()
   endforeach()
@@ -19,7 +18,7 @@ foreach(subdir ${LIBS})
   endif()
 
   string(FIND "${SUBMODULES_LIST}" "${subdir}" FOUND)
-  if(${FOUND} GREATER -1 AND NO_CONNECTION EQUAL 1)
+  if(${FOUND} GREATER -1 AND NO_CONNECTION EQUAL 0)
     #git submodules init
     execute_process(COMMAND git submodule update --remote --merge --init -- "lib/${subdir}"
       WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} OUTPUT_VARIABLE OUTPUT)
@@ -32,11 +31,11 @@ foreach(subdir ${LIBS})
     DIRECTORY "lib/${subdir}"
     DEFINITION LIB_NAME)
   list(APPEND EXTRA_LIBS "${libname}")
-  link_directories(${CMAKE_SOURCE_DIR}/lib/${subdir}/bin)
+  link_directories(${CMAKE_CURRENT_SOURCE_DIR}/lib/${subdir}/bin)
 endforeach()
 endif()
 
-###### Search for Subdirectories/Libraries ######
+###### Search for Subdirectories/Tool Libraries ######
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tool_lib" AND BUILD_EXAMPLES AND DIR_DEPTH EQUAL 0)
 execute_process(COMMAND git submodule status
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
@@ -46,8 +45,7 @@ foreach(subdir ${LIBS})
   #check if the library is a unused library
   set(IS_UNUSED 0)
   foreach(lib ${UNUSED_LIBS})
-    string(FIND "${lib}" "${subdir}" FOUND)
-    if(${FOUND} GREATER -1)
+    if("${lib}" STREQUAL "${subdir}")
       set(IS_UNUSED 1)
     endif()
   endforeach()
@@ -57,7 +55,7 @@ foreach(subdir ${LIBS})
   endif()
 
   string(FIND "${SUBMODULES_LIST}" "${subdir}" FOUND)
-  if(${FOUND} GREATER -1 AND NO_CONNECTION EQUAL 1)
+  if(${FOUND} GREATER -1 AND NO_CONNECTION EQUAL 0)
     #git submodules init
     execute_process(COMMAND git submodule update --remote --merge --init -- "tool_lib/${subdir}"
       WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} OUTPUT_VARIABLE OUTPUT)
@@ -70,6 +68,6 @@ foreach(subdir ${LIBS})
     DIRECTORY "tool_lib/${subdir}"
     DEFINITION LIB_NAME)
   list(APPEND TOOL_LIBS "${libname}")
-  link_directories(${CMAKE_SOURCE_DIR}/tool_lib/${subdir}/bin)
+  link_directories(${CMAKE_CURRENT_SOURCE_DIR}/tool_lib/${subdir}/bin)
 endforeach()
 endif()
