@@ -57,6 +57,7 @@ include(CMakeConfig.cmake)
 project(${EXEC_NAME} VERSION ${PROJECT_VERSION})
 option(BUILD_EXAMPLES "Build examples" OFF)
 option(BUILD_PYTHON "Build python wrapper" OFF)
+option(BUILD_TESTS "Build unit tests" OFF)
 
 ###### LIBRARY NAME ######
 set(LIB_NAME ${EXEC_NAME}.${PROJECT_VERSION})
@@ -155,5 +156,8 @@ else() #if not, build the target
 
 endif()
 
-
+###### Build tests if enabled ######
+if(BUILD_TESTS AND DIR_DEPTH EQUAL 0)
+  add_subdirectory(tests)
+endif()
 

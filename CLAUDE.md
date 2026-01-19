@@ -50,6 +50,12 @@ cmake .. -DBUILD_EXAMPLES=ON && make
 
 **Note:** CMake will fail with a clear error if submodules aren't initialized. See `DEPENDENCIES.md` for submodule workflow.
 
+```bash
+# Build with tests
+cmake .. -DBUILD_TESTS=ON && make
+./tests/test_crc && ./tests/test_tcp && ./tests/test_udp
+```
+
 The build produces both shared (`com_client.9.3`) and static (`com_client`) library targets.
 
 ## Architecture

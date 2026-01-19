@@ -109,9 +109,8 @@ Client::mk_crctable(uint16_t genpoly)
     {
         for(uint16_t data = 0; data < 256; data++)
         {
-            uint16_t d = data;
+            uint16_t d = data << 8;
             uint16_t accum = 0;
-            d <<= 8;
             for(int i = 8; i > 0; i--)
             {
                 if((d ^ accum) & 0x8000)
@@ -120,7 +119,7 @@ Client::mk_crctable(uint16_t genpoly)
                     accum <<= 1;
                 d <<= 1;
             }
-            s_crctable[d] = accum;
+            s_crctable[data] = accum;
         }
         return true;
     }();

@@ -40,4 +40,6 @@
 !/.gitattributes
 !/scripts
 !/scripts/*
+!/tests
+!/tests/*
 

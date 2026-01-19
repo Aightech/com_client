@@ -25,7 +25,6 @@ HTTP::HTTP(int verbose) : ESC::CLI(verbose, "HTTP_client"), TCP(verbose)
 std::string
 HTTP::get(const char *page, int n)
 {
-    // char buffer[n];
     char *buffer = new char[n];
     snprintf(m_header, 2048, m_header_get, page, m_ip.c_str());
     writeS(m_header, strlen(m_header));
@@ -35,18 +34,25 @@ HTTP::get(const char *page, int n)
         n = 2048;
         read_until = false;
     }
-    readS((uint8_t *)buffer, n, false,
-          read_until); //if n <0 then don't "read until"
+    int bytes_read = readS((uint8_t *)buffer, n, false, read_until);
+    if(bytes_read > 0 && bytes_read < n)
+        buffer[bytes_read] = '\0';
+    else if(bytes_read >= n)
+        buffer[n - 1] = '\0';
 
-    char *d = strstr(buffer, "\r\n\r\n");
-    int size = strtol(d, NULL, 16);
-    d = strstr(d, "{");
-    d[size] = '\0';
-    std::string s(d);
-    //logln("Received [" + std::to_string(size) + " bytes] : " + s, true);
+    // Find body after headers
+    char *body = strstr(buffer, "\r\n\r\n");
+    if(body == NULL)
+    {
+        delete[] buffer;
+        throw log_error("Malformed HTTP response: no header delimiter");
+    }
+    body += 4; // skip \r\n\r\n
+
+    std::string result(body);
     delete[] buffer;
-    return d;
-};
+    return result;
+}
 
 std::string
 HTTP::post(const char *page, const char *content, int n)
@@ -68,16 +74,20 @@ HTTP::post(const char *page, const char *content, int n)
         n = 2048;
         read_until = false;
     }
-    // char buffer[n];
     char *buffer = new char[n];
-    n = readS((uint8_t *)buffer, n, false,
-              read_until); //if n <0 then don't "read until"
+    int bytes_read = readS((uint8_t *)buffer, n, false, read_until);
+    if(bytes_read > 0 && bytes_read < n)
+        buffer[bytes_read] = '\0';
+    else if(bytes_read >= n)
+        buffer[n - 1] = '\0';
 
     //get the code of the response
     char *c = strstr(buffer, "HTTP/1.1 ");
     if(c == NULL)
-        throw log_error("Code HTTP/1.1 not found in header in : " +
-                        std::string(buffer));
+    {
+        delete[] buffer;
+        throw log_error("HTTP/1.1 not found in response");
+    }
     int code = strtol(c + 9, NULL, 10);
     std::string code_str(c + 9, 3);
 
@@ -86,23 +96,26 @@ HTTP::post(const char *page, const char *content, int n)
         logln(std::string("HEADER SENT:\n") + m_header, true);
         if(m_content_length > 0)
             logln(std::string("Content:\n") + content, true);
-        logln("Received [" + std::to_string(n) + " bytes] :\n" +
+        logln("Received [" + std::to_string(bytes_read) + " bytes] :\n" +
                   std::string(buffer),
               true);
+        delete[] buffer;
         throw log_error("HTTP code " + code_str);
     }
-    //get the content length
-    c = strstr(buffer, "\r\n\r\n");
-    if(c == NULL)
-        throw log_error("Content-Length not found in buffer");
-    int size = strtol(c, NULL, 16);
 
-    c = strstr(c, "{");
-    c[size] = '\0';
-    std::string s(c);
+    // Find body after headers
+    char *body = strstr(buffer, "\r\n\r\n");
+    if(body == NULL)
+    {
+        delete[] buffer;
+        throw log_error("Malformed HTTP response: no header delimiter");
+    }
+    body += 4; // skip \r\n\r\n
+
+    std::string result(body);
     logln(ESC::fstr("OK ", {ESC::FG_GREEN, ESC::BOLD}), true);
     delete[] buffer;
-    return c;
-};
+    return result;
+}
 
 } // namespace Communication

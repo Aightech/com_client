@@ -361,7 +361,10 @@ class TCPServer : public Server
         }
 
         closesocket(client_socket);
-        // Remove the socket from your containers if necessary
+        // Remove the socket from containers
+        m_clients.erase(client_socket);
+        m_fifos.erase(client_socket);
+        m_mutexes.erase(client_socket);
     }
 
     private:

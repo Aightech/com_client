@@ -140,14 +140,20 @@ int
 TCP::writeS(const void *buffer, size_t size, bool add_crc)
 {
     std::lock_guard<std::mutex> lck(*m_mutex); //ensure only one thread using it
-#ifdef __linux__
-    if(m_is_connected)
-        return send(m_fd, buffer, size + 2 * add_crc, 0);
+    if(!m_is_connected)
+        return -1;
+
+    if(add_crc)
+        *(uint16_t *)((uint8_t *)buffer + size) = CRC((uint8_t *)buffer, size);
+
+#if defined(__linux__) || defined(__APPLE__)
+    return send(m_fd, buffer, size + 2 * add_crc, 0);
 #elif _WIN32
-    if(m_is_connected)
-        return WriteFile((HANDLE)m_fd, buffer, size + 2 * add_crc, (LPDWORD)&n, NULL);
-#endif
+    DWORD n = 0;
+    if(WriteFile((HANDLE)m_fd, buffer, size + 2 * add_crc, &n, NULL))
+        return n;
     return -1;
+#endif
 }
 
 } // namespace Communication
